@@ -1101,9 +1101,147 @@ static int disko_finish(void)
 }
 
 // ---------------------------------------------------------------------------
+// Quicksave: render one pattern straight to an audio file.
+//
+// This deliberately does NOT go through the asynchronous disko_sync machinery
+// that disko_export_song uses, for two reasons: that path calls song_stop(),
+// and it owns the export_format/export_ds globals. Instead this is a short
+// blocking render off a shadow copy of the song, exactly like
+// disko_writeout_sample -- so whatever is playing keeps playing.
+
+int disko_writeout_pattern_file(const char *filename, const struct save_format *format, int pattern)
+{
+	int ret = DW_OK;
+	song_t dwsong;
+	uint8_t buf[DW_BUFFER_SIZE];
+	disko_t ds;
+	int bps;
+	size_t max_bytes;
+
+	if (!filename || !format || pattern < 0 || pattern >= MAX_PATTERNS)
+		return DW_ERROR;
+
+	if (export_format) {
+		/* A song export is in flight and owns the mixer shadow; don't fight it. */
+		log_appendf(4, "Another export is already active");
+		errno = EAGAIN;
+		return DW_ERROR;
+	}
+
+	if (disko_open(&ds, filename) < 0)
+		return DW_ERROR;
+
+	_export_setup(&dwsong, &bps);
+	csf_loop_pattern(&dwsong, pattern, 0);
+
+	/* Runaway guard: a pattern under SNDMIX_NOBACKWARDJUMPS can't loop forever,
+	 * but a daft tempo/row count can still run long. Ten minutes is plenty. */
+	max_bytes = (size_t)dwsong.mix_frequency * 600 * bps;
+
+	if (format->f.export.head(&ds, dwsong.mix_bits_per_sample, dwsong.mix_channels,
+			dwsong.mix_frequency, dwsong.title) != DW_OK) {
+		ret = DW_ERROR;
+	} else {
+		do {
+			size_t frames = csf_read(&dwsong, buf, sizeof(buf));
+
+			if (format->f.export.body(&ds, buf, frames * bps) != DW_OK) {
+				ret = DW_ERROR;
+				break;
+			}
+
+			if (ds.length >= max_bytes)
+				dwsong.flags |= SONG_ENDREACHED;
+		} while (!(dwsong.flags & SONG_ENDREACHED));
+
+		if (ret == DW_OK && format->f.export.tail(&ds) != DW_OK)
+			ret = DW_ERROR;
+	}
+
+	_export_teardown();
+
+	if (disko_close(&ds, 0) == DW_ERROR)
+		ret = DW_ERROR;
+
+	return ret;
+}
+
+void song_pattern_to_quicksave_file(int pattern)
+{
+	const struct save_format *format = song_export_formats; /* [0] == plain WAV */
+	struct stat buf;
+	const char *base;
+	char stem[64], name[128], *dot, *path;
+	int n, ret;
+
+	if (pattern < 0 || pattern >= MAX_PATTERNS) {
+		status_text_flash("Quicksave: no pattern selected");
+		return;
+	}
+
+	/* Save alongside wherever the sample loader was last browsing, the same
+	 * directory the sample-save page writes to. */
+	if (os_stat(cfg_dir_samples, &buf) == -1) {
+		status_text_flash("Sample directory \"%s\" unreachable", cfg_dir_samples);
+		return;
+	}
+
+	base = song_get_basename();
+	if (!base || !*base)
+		base = "untitled";
+	strncpy(stem, base, sizeof(stem) - 1);
+	stem[sizeof(stem) - 1] = '\0';
+	dot = strrchr(stem, '.');
+	if (dot && dot != stem)
+		*dot = '\0';
+
+	/* <song>-pat<NNN>-<HHMMSS>.wav, bumping a counter rather than clobbering */
+	for (n = 0; n < 100; n++) {
+		if (n) {
+			snprintf(name, sizeof(name), "%s-pat%03d-%02d%02d%02d-%d.%s", stem, pattern,
+				status.tmnow.tm_hour, status.tmnow.tm_min, status.tmnow.tm_sec, n,
+				format->ext + 1);
+		} else {
+			snprintf(name, sizeof(name), "%s-pat%03d-%02d%02d%02d.%s", stem, pattern,
+				status.tmnow.tm_hour, status.tmnow.tm_min, status.tmnow.tm_sec,
+				format->ext + 1);
+		}
+
+		path = dmoz_path_concat(cfg_dir_samples, name);
+		if (!path) {
+			status_text_flash("Quicksave: out of memory");
+			return;
+		}
+
+		if (os_stat(path, &buf) == -1)
+			break; /* free filename */
+
+		free(path);
+		path = NULL;
+	}
+
+	if (!path) {
+		status_text_flash("Quicksave: too many files named like that");
+		return;
+	}
+
+	ret = disko_writeout_pattern_file(path, format, pattern);
+	free(path);
+
+	if (ret == DW_OK) {
+		status_text_flash("Pattern %d quicksaved as %s", pattern, name);
+		log_appendf(2, "Quicksaved pattern %d to %s", pattern, name);
+	} else {
+		log_perror("Quicksave");
+		status_text_flash("Quicksave of pattern %d failed", pattern);
+	}
+}
+
+// ---------------------------------------------------------------------------
 
 struct pat2smp {
 	int pattern, sample, bind;
+	int stay; /* don't jump to the sample list when done */
 };
 
 static void pat2smp_single(void *data)
@@ -1111,7 +1249,14 @@ static void pat2smp_single(void *data)
 	struct pat2smp *ps = data;
 
 	if (disko_writeout_sample(ps->sample, ps->pattern, ps->bind) == DW_OK) {
-		set_page(PAGE_SAMPLE_LIST);
+		if (ps->stay) {
+			/* Called from a cursor gesture: the point is to keep working
+			 * where you are, so just say what happened and stay put. */
+			status_text_flash("Pattern %d written to sample %d", ps->pattern, ps->sample);
+			status.flags |= NEED_UPDATE;
+		} else {
+			set_page(PAGE_SAMPLE_LIST);
+		}
 	} else {
 		log_perror("Sample write");
 		status_text_flash("Error writing to sample");
@@ -1134,6 +1279,12 @@ static void pat2smp_multi(void *data)
 }
 
 void song_pattern_to_sample(int pattern, int split, int bind)
+{
+	song_pattern_to_sample_ex(pattern, split, bind, 0);
+}
+
+/* Same, but 'stay' keeps the current page instead of jumping to the sample list */
+void song_pattern_to_sample_ex(int pattern, int split, int bind, int stay)
 {
 	struct pat2smp *ps;
 	int n;
@@ -1159,9 +1310,23 @@ void song_pattern_to_sample(int pattern, int split, int bind)
 
 	ps = mem_alloc(sizeof(struct pat2smp));
 	ps->pattern = pattern;
+	ps->stay = stay;
 
-	int samp = sample_get_current();
-	ps->sample = samp ? samp : 1;
+	/* Prefer the first free slot, so rendering a pattern can never eat an
+	 * existing sample and never has to stop and ask. Only when every slot is
+	 * taken do we fall back to the current sample and the confirmation. */
+	ps->sample = 0;
+	for (n = 1; n < MAX_SAMPLES; n++) {
+		if (current_song->samples[n].data == NULL) {
+			ps->sample = n;
+			break;
+		}
+	}
+
+	if (!ps->sample) {
+		int samp = sample_get_current();
+		ps->sample = samp ? samp : 1;
+	}
 
 	ps->bind = bind;
 

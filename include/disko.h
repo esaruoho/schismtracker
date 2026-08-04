@@ -108,9 +108,21 @@ int disko_multiwrite_samples(int firstsmp, int pattern);
 and with a confirmation dialog if the sample already has data */
 void song_pattern_to_sample(int pattern, int split, int bind);
 
+/* Same, but 'stay' keeps the current page instead of jumping to the sample list
+(for cursor gestures, where being thrown onto another page is just in the way) */
+void song_pattern_to_sample_ex(int pattern, int split, int bind, int stay);
+
 /* export the song to a file */
 struct save_format;
 int disko_export_song(const char *filename, const struct save_format *format);
+
+/* Render a single pattern straight to an audio file, synchronously, without
+disturbing playback (no song_stop, doesn't touch the disko_sync machinery) */
+int disko_writeout_pattern_file(const char *filename, const struct save_format *format, int pattern);
+
+/* Wrapper for the above: writes a WAV named after the song, pattern and time
+into whatever directory the sample loader was last browsing */
+void song_pattern_to_quicksave_file(int pattern);
 
 /* call periodically if (status.flags & DISKWRITER_ACTIVE) to write more stuff.
 return: DW_SYNC_*, self explanatory */

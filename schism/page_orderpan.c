@@ -496,6 +496,40 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		new_cursor_pos--;
 		break;
 	case SCHISM_KEYSYM_RIGHT:
+		/* Both render gestures fire on the press of a fresh keystroke. Not on
+		 * release: the release of the very keypress that walked the cursor onto
+		 * the last digit would render immediately, one keystroke too early. And
+		 * not on auto-repeat, so holding the key can't queue up renders. */
+
+		/* Shift-Right quicksaves this order's pattern to a .wav next to
+		 * wherever the sample loader was last browsing -- from any column of
+		 * the pattern cell, since it never moves the cursor anyway. */
+		if ((k->mod & SCHISM_KEYMOD_SHIFT) && NO_CAM_MODS(k->mod)) {
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+			n = current_song->orderlist[current_order];
+			if (n >= 200)
+				status_text_flash("No pattern at order %d", current_order);
+			else
+				song_pattern_to_quicksave_file(n);
+			return 1;
+		}
+
+		/* On the last digit, plain Right stops being a cursor move (it used to
+		 * just wrap back to the first digit) and renders into a sample slot. */
+		if (orderlist_cursor_pos == 2 && NO_MODIFIER(k->mod)) {
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+			n = current_song->orderlist[current_order];
+			if (n >= 200) {
+				status_text_flash("No pattern at order %d", current_order);
+			} else {
+				/* stay on the order list -- being thrown onto the sample
+				 * list after every render is just in the way here */
+				song_pattern_to_sample_ex(n, 0, 0, 1);
+			}
+			return 1;
+		}
 		if (!NO_MODIFIER(k->mod))
 			return 0;
 		if (k->state == KEY_RELEASE)
