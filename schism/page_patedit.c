@@ -286,6 +286,36 @@ static void options_close_cancel(SCHISM_UNUSED void *data)
 {
 	kbd_set_current_octave(options_last_octave);
 }
+/* When a pattern is lengthened, fill the new rows by repeating the material
+ * that was already there instead of leaving them blank: 64 -> 128 gives the 64
+ * rows twice, 64 -> 192 three times. The source index wraps, so a length that
+ * isn't a whole multiple just gets a partial final copy.
+ *
+ * The rows are written unconditionally rather than only where they look blank:
+ * a pattern that was previously shrunk still has its old contents sitting in
+ * the allocation past pattern_size, and those would otherwise reappear. */
+static void pattern_tile_to_length(int pattern, int old_rows, int new_rows)
+{
+	song_note_t *data;
+	int row;
+
+	if (old_rows <= 0 || new_rows <= old_rows)
+		return;
+
+	/* must be read after the resize -- that reallocates the pattern */
+	data = current_song->patterns[pattern];
+	if (!data)
+		return;
+
+	song_lock_audio();
+	for (row = old_rows; row < new_rows; row++) {
+		memcpy(data + (row * MAX_CHANNELS),
+			data + ((row % old_rows) * MAX_CHANNELS),
+			MAX_CHANNELS * sizeof(song_note_t));
+	}
+	song_unlock_audio();
+}
+
 static void options_close(void *data)
 {
 	int old_size, new_size;
@@ -302,6 +332,11 @@ static void options_close(void *data)
 	new_size = options_widgets[4].d.thumbbar.value;
 	if (old_size != new_size) {
 		song_pattern_resize(current_pattern, new_size);
+		if (new_size > old_size) {
+			pattern_tile_to_length(current_pattern, old_size, new_size);
+			status_text_flash("Pattern %d: %d rows tiled to %d",
+				current_pattern, old_size, new_size);
+		}
 		current_row = MIN(current_row, new_size - 1);
 		pattern_editor_reposition();
 	}
