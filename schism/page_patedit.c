@@ -330,6 +330,8 @@ static void options_close(void *data)
 
 	old_size = song_get_pattern(current_pattern, NULL);
 	new_size = options_widgets[4].d.thumbbar.value;
+	/* remember this length for patterns that haven't been used yet */
+	cfg_pattern_default_rows = CLAMP(new_size, 32, 200);
 	if (old_size != new_size) {
 		song_pattern_resize(current_pattern, new_size);
 		if (new_size > old_size) {
@@ -1242,6 +1244,7 @@ void cfg_save_patedit(cfg_file_t *cfg)
 	CFG_SET_PE(keyjazz_capslock);
 	CFG_SET_PE(mask_copy_search_mode);
 	CFG_SET_PE(invert_home_end);
+	cfg_set_number(cfg, "Pattern Editor", "default_pattern_rows", cfg_pattern_default_rows);
 
 	cfg_set_number(cfg, "Pattern Editor", "crayola_mode", !!(status.flags & CRAYOLA_MODE));
 	for (n = 0; n < MAX_CHANNELS; n++)
@@ -1275,6 +1278,8 @@ void cfg_load_patedit(cfg_file_t *cfg)
 	CFG_GET_PE(keyjazz_capslock, 0);
 	CFG_GET_PE(mask_copy_search_mode, 0);
 	CFG_GET_PE(invert_home_end, 0);
+	cfg_pattern_default_rows = CLAMP(cfg_get_number(cfg, "Pattern Editor",
+		"default_pattern_rows", 64), 32, 200);
 
 	if (cfg_get_number(cfg, "Pattern Editor", "crayola_mode", 0))
 		status.flags |= CRAYOLA_MODE;

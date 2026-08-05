@@ -57,6 +57,7 @@ int cfg_video_want_menu_bar = 0;
 
 // If these are set to zero, it means to use the
 // system key repeat or the default fallback values.
+int cfg_pattern_default_rows = 64;
 int cfg_kbd_repeat_delay = 0;
 int cfg_kbd_repeat_rate = 0;
 

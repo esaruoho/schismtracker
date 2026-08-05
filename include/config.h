@@ -47,6 +47,9 @@ extern int cfg_video_width, cfg_video_height;
 extern int cfg_video_hardware;
 extern int cfg_video_want_menu_bar;
 
+/* row count a pattern is created with (F2 options remembers it); 32..200 */
+extern int cfg_pattern_default_rows;
+
 extern int cfg_kbd_repeat_delay;
 extern int cfg_kbd_repeat_rate;
 

@@ -25,6 +25,7 @@
 
 #include "it.h"
 #include "song.h"
+#include "config.h"
 #include "slurp.h"
 
 // ------------------------------------------------------------------------
@@ -256,16 +257,22 @@ int song_get_pattern(int pattern_number, song_note_t ** buf)
 	if (pattern_number >= MAX_PATTERNS)
 		return 0;
 
+	/* A pattern that has never existed is created at the length last chosen on
+	 * the F2 options screen, rather than a hardcoded 64. This only affects the
+	 * size of an allocation that was going to happen anyway -- it deliberately
+	 * does NOT resize patterns that already exist. */
+	int newrows = CLAMP(cfg_pattern_default_rows, 32, 200);
+
 	if (buf) {
 		if (!current_song->patterns[pattern_number]) {
-			current_song->pattern_size[pattern_number] = 64;
-			current_song->pattern_alloc_size[pattern_number] = 64;
+			current_song->pattern_size[pattern_number] = newrows;
+			current_song->pattern_alloc_size[pattern_number] = newrows;
 			current_song->patterns[pattern_number] = csf_allocate_pattern(current_song->pattern_size[pattern_number]);
 		}
 		*buf = current_song->patterns[pattern_number];
 	} else {
 		if (!current_song->patterns[pattern_number])
-			return 64;
+			return newrows;
 	}
 	return current_song->pattern_size[pattern_number];
 }
