@@ -44,6 +44,11 @@ static int current_order = 0;
 static int orderlist_cursor_pos = 0;
 
 static unsigned char saved_orderlist[256];
+
+/* When Alt-D clones a pattern, wipe the currently-muted channels in the copy
+ * (leaving a note-cut at row 0) instead of copying them verbatim. Toggled with
+ * M. On by default, matching the impulse-tracker fork. */
+static int clone_mute_wipe = 1;
 static int _did_save_orderlist = 0;
 
 /* --------------------------------------------------------------------- */
@@ -235,6 +240,84 @@ static void orderlist_delete_pos(void)
 		255 - current_order);
 	current_song->orderlist[255] = ORDER_LAST;
 
+	status.flags |= NEED_UPDATE | SONG_NEEDS_SAVE;
+}
+
+/* Lowest pattern slot with nothing in it, skipping `except` (the one we're
+ * cloning from -- an empty pattern would otherwise clone onto itself). */
+static int orderlist_find_free_pattern(int except)
+{
+	int n;
+
+	for (n = 0; n < 200; n++) {
+		if (n == except)
+			continue;
+		if (csf_pattern_is_empty(current_song, n))
+			return n;
+	}
+
+	return -1;
+}
+
+/* Clone this order's pattern into the first free slot, insert the copy into the
+ * order list right after the current row, and move the cursor onto it -- so
+ * "duplicate this bit and carry on arranging" is one keystroke. */
+static void orderlist_clone_pattern(void)
+{
+	song_note_t *src, *dst;
+	int pat, newpat, rows, chan, row;
+
+	pat = current_song->orderlist[current_order];
+	if (pat >= 200) {
+		status_text_flash("No pattern at order %d", current_order);
+		return;
+	}
+	if (current_order >= 254) {
+		status_text_flash("No room left in the order list");
+		return;
+	}
+
+	newpat = orderlist_find_free_pattern(pat);
+	if (newpat < 0) {
+		status_text_flash("No free pattern to clone into");
+		return;
+	}
+
+	rows = song_get_pattern(pat, &src);
+	if (!src || rows < 1) {
+		status_text_flash("Pattern %d is empty", pat);
+		return;
+	}
+
+	song_pattern_resize(newpat, rows);
+	if (!song_get_pattern(newpat, &dst) || !dst)
+		return;
+
+	song_lock_audio();
+	memcpy(dst, src, MAX_CHANNELS * rows * sizeof(song_note_t));
+
+	if (clone_mute_wipe) {
+		for (chan = 0; chan < MAX_CHANNELS; chan++) {
+			if (!(current_song->channels[chan].flags & CHN_MUTE))
+				continue;
+			for (row = 0; row < rows; row++)
+				memset(dst + (row * MAX_CHANNELS) + chan, 0, sizeof(song_note_t));
+			/* stop anything the muted channel was still sounding */
+			dst[chan].note = NOTE_CUT;
+		}
+	}
+
+	/* shove the rest of the order list down and drop the clone in */
+	memmove(current_song->orderlist + current_order + 2,
+		current_song->orderlist + current_order + 1,
+		254 - current_order);
+	current_song->orderlist[current_order + 1] = newpat;
+	song_unlock_audio();
+
+	set_current_order(current_order + 1);
+
+	status_text_flash("Pattern %d cloned to %d%s", pat, newpat,
+		clone_mute_wipe ? " (muted channels wiped)" : "");
 	status.flags |= NEED_UPDATE | SONG_NEEDS_SAVE;
 }
 
@@ -667,6 +750,24 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 			}
 		}
 		break;
+
+	case SCHISM_KEYSYM_d:
+		if (k->mod & SCHISM_KEYMOD_ALT) {
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+			orderlist_clone_pattern();
+			return 1;
+		}
+		return 0;
+
+	case SCHISM_KEYSYM_m:
+		if (!NO_MODIFIER(k->mod))
+			return 0;
+		if (k->state == KEY_RELEASE)
+			return 1;
+		clone_mute_wipe = !clone_mute_wipe;
+		status_text_flash("Clone mute-wipe %s", clone_mute_wipe ? "enabled" : "disabled");
+		return 1;
 
 	case SCHISM_KEYSYM_r:
 		if (k->mod & SCHISM_KEYMOD_ALT) {
