@@ -569,6 +569,76 @@ static void reposition_at_slash_search(void)
 	}
 }
 
+/* Shift-Enter on a module row: lift every sample in it into consecutive slots,
+ * starting at the currently selected one. Ported from the impulse-tracker
+ * fork's Shift-Enter bulk load.
+ *
+ * The module is loaded into its own song and the samples deep-copied out of it
+ * (song_copy_sample allocates), so freeing it afterwards is safe. */
+static void handle_shift_enter_key(void)
+{
+	dmoz_file_t *file;
+	song_t *mod;
+	song_sample_t *smp;
+	int cur, n, loaded = 0, skipped = 0;
+
+	if (current_file < 0 || current_file >= flist.num_files)
+		return;
+
+	file = flist.files[current_file];
+	dmoz_cache_update(cfg_dir_samples, &flist, NULL);
+	dmoz_fill_ext_data(file);
+
+	if (!(file->type & TYPE_MODULE_MASK)) {
+		status_text_flash("Not a module -- Shift-Enter loads a module's samples");
+		return;
+	}
+
+	mod = song_create_load(file->path);
+	if (!mod) {
+		log_perror(file->path);
+		status_text_flash("Could not read %s", file->base);
+		return;
+	}
+
+	cur = sample_get_current();
+	for (n = 1; n < MAX_SAMPLES; n++) {
+		if (!mod->samples[n].data || !mod->samples[n].length)
+			continue; /* empty slot in the source module */
+
+		if (cur >= MAX_SAMPLES) {
+			skipped++;
+			continue;
+		}
+
+		song_copy_sample(cur, mod->samples + n);
+		smp = song_get_sample(cur);
+		/* keep the module's own name and filename for the slot */
+		memcpy(smp->name, mod->samples[n].name, sizeof(smp->name));
+		smp->name[ARRAY_SIZE(smp->name) - 1] = '\0';
+		memcpy(smp->filename, mod->samples[n].filename, sizeof(smp->filename));
+		smp->filename[ARRAY_SIZE(smp->filename) - 1] = '\0';
+
+		loaded++;
+		cur++;
+	}
+
+	csf_free(mod);
+
+	if (!loaded) {
+		status_text_flash("%s contains no samples", file->base);
+		return;
+	}
+
+	memused_songchanged();
+	status.flags |= SONG_NEEDS_SAVE;
+	if (skipped)
+		status_text_flash("Loaded %d samples (%d didn't fit)", loaded, skipped);
+	else
+		status_text_flash("Loaded %d samples from %s", loaded, file->base);
+	set_page(PAGE_SAMPLE_LIST);
+}
+
 /* on the file list, that is */
 static void handle_enter_key(void)
 {
@@ -729,7 +799,10 @@ static int file_list_handle_key(struct key_event * k)
 		if (search_pos < 0) {
 			if (k->state == KEY_PRESS)
 				return 0;
-			handle_enter_key();
+			if ((k->mod & SCHISM_KEYMOD_SHIFT) && !_library_mode)
+				handle_shift_enter_key();
+			else
+				handle_enter_key();
 			search_pos = -1;
 		} else {
 			if (k->state == KEY_PRESS)
