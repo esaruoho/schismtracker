@@ -3676,6 +3676,58 @@ static int pattern_editor_insert(struct key_event *k)
 }
 
 /* --------------------------------------------------------------------- */
+
+/* Replicate at cursor: tile the rows ABOVE the cursor downward to the end of
+ * the pattern, so a one- or few-row figure can be stamped across without
+ * copy/paste. Ported from the esaruoho/impulse-tracker fork's Alt-R.
+ *
+ * Rows 0..current_row-1 are the source; sitting on row 0 makes row 0 itself the
+ * source, so a single row fills the rest. The source index wraps, so the last
+ * copy is partial when the remaining space isn't a whole multiple.
+ *
+ * whole_pattern tiles every channel; otherwise only the current one. Empty
+ * events copy through as-is -- this mirrors the source exactly rather than
+ * merging into what is already there. */
+static void pattern_replicate_at_cursor(int whole_pattern)
+{
+	song_note_t *pattern, *src, *dest;
+	int total_rows, src_rows, row, offset, width;
+
+	total_rows = song_get_pattern(current_pattern, &pattern);
+	if (!pattern || total_rows < 2 || current_row >= total_rows)
+		return;
+
+	src_rows = current_row ? current_row : 1;
+	if (src_rows >= total_rows)
+		return; /* nothing below to fill */
+
+	if (whole_pattern) {
+		offset = 0;
+		width = MAX_CHANNELS;
+	} else {
+		offset = current_channel - 1;
+		width = 1;
+	}
+
+	status.flags |= SONG_NEEDS_SAVE;
+	pated_history_add(whole_pattern
+			? "Undo replicate pattern above   (Ctrl-Shift-Down)"
+			: "Undo replicate track above     (Ctrl-Down)",
+		offset, src_rows, width, total_rows - src_rows);
+
+	for (row = src_rows; row < total_rows; row++) {
+		src = pattern + (MAX_CHANNELS * (row % src_rows)) + offset;
+		dest = pattern + (MAX_CHANNELS * row) + offset;
+		memcpy(dest, src, width * sizeof(song_note_t));
+	}
+
+	status_text_flash(whole_pattern
+		? "Pattern replicated from row %d"
+		: "Track replicated from row %d", src_rows);
+	status.flags |= NEED_UPDATE;
+}
+
+/* --------------------------------------------------------------------- */
 /* return values:
  * 1 = handled key completely. don't do anything else
  * -1 = partly done, but need to recalculate cursor stuff
@@ -4076,8 +4128,11 @@ static int pattern_editor_handle_ctrl_key(struct key_event * k)
 	case SCHISM_KEYSYM_DOWN:
 		if (k->state == KEY_RELEASE)
 			return 1;
-		set_next_instrument();
-		status.flags |= NEED_UPDATE;
+		/* Ctrl-Down replicates the rows above the cursor down the current
+		 * track; add Shift to do it across the whole pattern. */
+		if (k->is_repeat)
+			return 1; /* don't let a held key stack up replicates */
+		pattern_replicate_at_cursor(!!(k->mod & SCHISM_KEYMOD_SHIFT));
 		return 1;
 	case SCHISM_KEYSYM_PAGEUP:
 		if (k->state == KEY_RELEASE)
@@ -4684,7 +4739,10 @@ static int pattern_editor_handle_key_cb(struct key_event * k)
 	if (max_row_number < 0)
 		max_row_number = 0;
 
-	if (k->mod & SCHISM_KEYMOD_SHIFT) {
+	/* Ctrl-Shift-Down is the replicate-whole-pattern gesture, so it must not
+	 * also start a shift-selection on its way to the ctrl handler. */
+	if ((k->mod & SCHISM_KEYMOD_SHIFT)
+		&& !((k->mod & SCHISM_KEYMOD_CTRL) && k->sym == SCHISM_KEYSYM_DOWN)) {
 		switch (k->sym) {
 		case SCHISM_KEYSYM_LEFT:
 		case SCHISM_KEYSYM_RIGHT:
