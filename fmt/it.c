@@ -773,27 +773,41 @@ int fmt_it_load_song(song_t *song, slurp_t *fp, uint32_t lflags)
 
 enum {
 	WARN_ADLIB,
+	WARN_PATTERNTRUNC,
 
 	MAX_WARN,
 };
 
 const char *it_warnings[] = {
 	[WARN_ADLIB] = "AdLib samples",
+	[WARN_PATTERNTRUNC] = "Patterns too dense to pack (rows dropped)",
 };
 
+/* Worst case a single row can pack to: every channel writing
+ * channel-var + mask + note + instrument + volume + effect + param,
+ * plus the end-of-row marker. */
+#define IT_PACKED_ROW_MAX (IT_CHANNELS * 7 + 1)
+
 // NOBODY expects the Spanish Inquisition!
-static void save_it_pattern(disko_t *fp, song_note_t *pat, int patsize)
+static void save_it_pattern(disko_t *fp, song_note_t *pat, int patsize, uint32_t *warn)
 {
 	song_note_t *noteptr = pat;
 	song_note_t lastnote[IT_CHANNELS] = {0};
 	uint8_t initmask[IT_CHANNELS] = {0};
 	uint8_t lastmask[IT_CHANNELS];
-	uint16_t pos = 0;
-	uint8_t data[65536];
+	/* This used to be a 64KB stack buffer indexed by a uint16_t. A dense
+	 * 64-channel pattern packs to ~449 bytes a row, so even the old 200-row
+	 * maximum could run past the end of it; with longer patterns allowed it
+	 * certainly would. Size for the worst case and track the cursor wide. */
+	size_t pos = 0;
+	size_t rowstart;
+	int rows_out = 0;
+	uint8_t *data = mem_alloc(((size_t)patsize * IT_PACKED_ROW_MAX) + 1);
 
 	memset(lastmask, 0xff, IT_CHANNELS);
 
 	for (int row = 0; row < patsize; row++) {
+		rowstart = pos;
 		for (int chan = 0; chan < IT_CHANNELS; chan++, noteptr++) {
 			uint8_t m = 0;  // current mask
 			int vol = -1;
@@ -881,15 +895,28 @@ static void save_it_pattern(disko_t *fp, song_note_t *pat, int patsize)
 			if (m & 8) { data[pos++] = effect; data[pos++] = param; }
 		} // end channel
 		data[pos++] = 0;
+
+		/* The pattern header stores the packed length in 16 bits, so anything
+		 * past 65535 cannot be represented. Drop back to the last whole row
+		 * that fits rather than writing a length that wraps. */
+		if (pos > 65535) {
+			pos = rowstart;
+			break;
+		}
+		rows_out++;
 	} // end row
+
+	if (rows_out < patsize)
+		*warn |= (1 << WARN_PATTERNTRUNC);
 
 	// write the data to the file (finally!)
 	uint16_t h[4] = {0};
-	h[0] = bswapLE16(pos);
-	h[1] = bswapLE16(patsize);
+	h[0] = bswapLE16((uint16_t)pos);
+	h[1] = bswapLE16((uint16_t)rows_out);
 	// h[2] and h[3] are meaningless
 	disko_write(fp, &h, 8);
 	disko_write(fp, data, pos);
+	free(data);
 }
 
 int fmt_it_save_song(disko_t *fp, song_t *song)
@@ -1073,7 +1100,7 @@ int fmt_it_save_song(disko_t *fp, song_t *song)
 		} else {
 			para_pat[n] = disko_tell(fp);
 			para_pat[n] = bswapLE32(para_pat[n]);
-			save_it_pattern(fp, song->patterns[n], song->pattern_size[n]);
+			save_it_pattern(fp, song->patterns[n], song->pattern_size[n], &warn);
 		}
 	}
 

@@ -331,7 +331,7 @@ static void options_close(void *data)
 	old_size = song_get_pattern(current_pattern, NULL);
 	new_size = options_widgets[4].d.thumbbar.value;
 	/* remember this length for patterns that haven't been used yet */
-	cfg_pattern_default_rows = CLAMP(new_size, 32, 200);
+	cfg_pattern_default_rows = CLAMP(new_size, MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
 	if (old_size != new_size) {
 		song_pattern_resize(current_pattern, new_size);
 		if (new_size > old_size) {
@@ -382,7 +382,8 @@ void pattern_editor_display_options(void)
 		discovered it's a bit annoying to hit 'home' here expecting to get 32 rows but end up with
 		just one row instead. so I'll allow editing these patterns, but not really provide a way to
 		set the size, at least until I decide how to present the option nonintrusively. */
-		widget_create_thumbbar(options_widgets + 4, 40, 35, 22, 3, 5, 5, NULL, 32, 200);
+		widget_create_thumbbar(options_widgets + 4, 40, 35, 22, 3, 5, 5, NULL,
+			MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
 		widget_create_togglebutton(options_widgets + 5, 40, 38, 8, 4, 7, 6, 6, 6,
 				    NULL, "Link", 3, options_link_split);
 		widget_create_togglebutton(options_widgets + 6, 52, 38, 9, 4, 7, 5, 5, 5,
@@ -457,7 +458,8 @@ void pattern_editor_length_edit(void)
 {
 	struct dialog *dialog;
 
-	widget_create_thumbbar(length_edit_widgets + 0, 34, 24, 22, 0, 1, 1, NULL, 32, 200);
+	widget_create_thumbbar(length_edit_widgets + 0, 34, 24, 22, 0, 1, 1, NULL,
+		MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
 	length_edit_widgets[0].d.thumbbar.value = song_get_pattern(current_pattern, NULL );
 	widget_create_thumbbar(length_edit_widgets + 1, 34, 27, 26, 0, 2, 2, NULL, 0, 199);
 	widget_create_thumbbar(length_edit_widgets + 2, 34, 28, 26, 1, 3, 3, NULL, 0, 199);
@@ -1279,7 +1281,7 @@ void cfg_load_patedit(cfg_file_t *cfg)
 	CFG_GET_PE(mask_copy_search_mode, 0);
 	CFG_GET_PE(invert_home_end, 0);
 	cfg_pattern_default_rows = CLAMP(cfg_get_number(cfg, "Pattern Editor",
-		"default_pattern_rows", 64), 32, 200);
+		"default_pattern_rows", 64), MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
 
 	if (cfg_get_number(cfg, "Pattern Editor", "crayola_mode", 0))
 		status.flags |= CRAYOLA_MODE;
@@ -2371,9 +2373,10 @@ static void clipboard_paste_overwrite(int suppress, int grow)
 		num_rows = clipboard.rows;
 
 	if (clipboard.rows > num_rows && grow) {
-		if (current_row+clipboard.rows > 200) {
-			status_text_flash("Resized pattern %d, but clipped to 200 rows", current_pattern);
-			song_pattern_resize(current_pattern, 200);
+		if (current_row+clipboard.rows > MAX_PATTERN_ROWS) {
+			status_text_flash("Resized pattern %d, but clipped to %d rows",
+				current_pattern, MAX_PATTERN_ROWS);
+			song_pattern_resize(current_pattern, MAX_PATTERN_ROWS);
 		} else {
 			status_text_flash("Resized pattern %d to %d rows", current_pattern,
 					  current_row + clipboard.rows);

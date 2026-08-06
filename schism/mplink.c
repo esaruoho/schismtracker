@@ -261,7 +261,7 @@ int song_get_pattern(int pattern_number, song_note_t ** buf)
 	 * the F2 options screen, rather than a hardcoded 64. This only affects the
 	 * size of an allocation that was going to happen anyway -- it deliberately
 	 * does NOT resize patterns that already exist. */
-	int newrows = CLAMP(cfg_pattern_default_rows, 32, 200);
+	int newrows = CLAMP(cfg_pattern_default_rows, MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
 
 	if (buf) {
 		if (!current_song->patterns[pattern_number]) {

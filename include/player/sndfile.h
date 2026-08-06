@@ -26,6 +26,12 @@
 #define MAX_SAMPLES             236
 #define MAX_INSTRUMENTS         MAX_SAMPLES
 #define MAX_CHANNELS            64
+/* Row-count range for a pattern. Impulse Tracker itself stops at 200; the IT
+ * file format stores the row count in 16 bits, so longer patterns save and load
+ * fine here but a file using them will not open in IT (or in other trackers
+ * that assume IT's limit). pattern_size/pattern_alloc_size are uint16_t. */
+#define MIN_PATTERN_ROWS        32
+#define MAX_PATTERN_ROWS        512
 #define MAX_ENVPOINTS           32
 #define MAX_INFONAME            80
 #define MAX_EQ_BANDS            6
