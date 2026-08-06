@@ -72,6 +72,7 @@ static void update_midi_values(void)
 	|       (widgets_midi[6].d.toggle.state ? MIDI_CUT_NOTE_OFF : 0)
 	|       (widgets_midi[9].d.toggle.state ? MIDI_PITCHBEND : 0)
 	|       (widgets_midi[15].d.toggle.state ? MIDI_CLOCK_SYNC : 0)
+	|       (widgets_midi[16].d.toggle.state ? MIDI_MULTITIMBRAL : 0)
 	;
 	if (widgets_midi[11].d.toggle.state)
 		current_song->flags |= SONG_EMBEDMIDICFG;
@@ -93,6 +94,7 @@ static void get_midi_config(void)
 	widgets_midi[6].d.toggle.state = !!(midi_flags & MIDI_CUT_NOTE_OFF);
 	widgets_midi[9].d.toggle.state = !!(midi_flags & MIDI_PITCHBEND);
 	widgets_midi[15].d.toggle.state = !!(midi_flags & MIDI_CLOCK_SYNC);
+	widgets_midi[16].d.toggle.state = !!(midi_flags & MIDI_MULTITIMBRAL);
 	widgets_midi[11].d.toggle.state = !!(current_song->flags & SONG_EMBEDMIDICFG);
 
 	widgets_midi[7].d.thumbbar.value = midi_amplification;
@@ -226,9 +228,10 @@ static void midi_page_redraw(void)
 	draw_text(   "Record Aftertouch", 2, 34, 0, 2);
 	draw_text(        "Cut note off", 7, 35, 0, 2);
 	draw_text(     "MIDI clock sync", 4, 36, 0, 2);
+	draw_text(     "Multitimbral in", 4, 37, 0, 2);
 
-	draw_fill_chars(23, 30, 24, 36, DEFAULT_FG, 0);
-	draw_box(19,29,25,37, BOX_THIN|BOX_INNER|BOX_INSET);
+	draw_fill_chars(23, 30, 24, 37, DEFAULT_FG, 0);
+	draw_box(19,29,25,38, BOX_THIN|BOX_INNER|BOX_INSET);
 
 	draw_box(52,29,73,32, BOX_THIN|BOX_INNER|BOX_INSET);
 
@@ -351,7 +354,7 @@ void midi_load_page(struct page *page)
 	page->playback_update = NULL;
 	page->handle_key = NULL;
 	page->set_page = get_midi_config;
-	page->total_widgets = 16;
+	page->total_widgets = 17;
 	page->widgets = widgets_midi;
 	page->help_index = HELP_GLOBAL;
 
@@ -373,11 +376,13 @@ void midi_load_page(struct page *page)
 	widget_create_thumbbar(widgets_midi + 10, 53, 35, 20, 9, 11, 6, update_midi_values, 0, 48);
 	widget_create_toggle(widgets_midi + 11, 53, 38, 10, 12, 13, 13, 13, update_midi_values);
 	widget_create_thumbbar(widgets_midi + 12, 53, 41, 20, 11, 12, 13, update_ip_ports, 0, 128);
-	widget_create_button(widgets_midi + 13, 2, 41, 27, 15, 14, 12, 12, 12,
+	widget_create_button(widgets_midi + 13, 2, 41, 27, 16, 14, 12, 12, 12,
 		midi_output_config, "MIDI Output Configuration", 2);
 	widget_create_button(widgets_midi + 14, 2, 44, 27, 13, 14, 12, 12, 12,
 		cfg_midipage_save, "Save Output Configuration", 2);
 	/* follow an incoming MIDI clock; sits below "Cut note off" */
-	widget_create_toggle(widgets_midi + 15, 20, 36, 6, 13, 10, 10, 10, update_midi_values);
+	widget_create_toggle(widgets_midi + 15, 20, 36, 6, 16, 10, 10, 10, update_midi_values);
+	/* route incoming notes by MIDI channel */
+	widget_create_toggle(widgets_midi + 16, 20, 37, 15, 13, 10, 10, 10, update_midi_values);
 }
 

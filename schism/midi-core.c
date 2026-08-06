@@ -1239,6 +1239,72 @@ void midi_event_sysex(const unsigned char *data, uint32_t len)
 	events_push_event(&event);
 }
 
+/* --- multitimbral MIDI in ----------------------------------------------
+ * Normally an incoming note plays whatever instrument is currently selected,
+ * so every MIDI channel drives the same sound. With multitimbral on, the note
+ * instead goes to the instrument that claims its MIDI channel, and plays on a
+ * free channel -- so 16 parts can be driven at once, from any screen.
+ *
+ * The claim is the instrument's existing MIDI-channel bitset (set on the
+ * instrument pitch page, and already saved in the file), so no new per-
+ * instrument state is needed. The "channel follows note" mode (mask >= 0x10000)
+ * is an output-side setting and is not treated as a claim. */
+static int midi_multi_instrument_for_channel(int channel)
+{
+	int n;
+
+	if (channel < 1 || channel > 16)
+		return 0;
+
+	for (n = 1; n < MAX_INSTRUMENTS; n++) {
+		song_instrument_t *ins = current_song->instruments[n];
+
+		if (!ins || ins->midi_channel_mask >= 0x10000)
+			continue;
+		if (ins->midi_channel_mask & (1 << (channel - 1)))
+			return n;
+	}
+
+	return 0;
+}
+
+/* returns 1 if the note was routed and should not also be fed to the page */
+static int midi_multi_route(schism_event_t *ev)
+{
+	int channel, note, ins, vol;
+
+	if (!(midi_flags & MIDI_MULTITIMBRAL))
+		return 0;
+
+	/* the routing targets are instruments, so it only means anything in
+	 * instrument mode; in sample mode fall through to the normal path */
+	if (!song_is_instrument_mode())
+		return 0;
+
+	channel = ev->midi_note.channel + 1;
+	ins = midi_multi_instrument_for_channel(channel);
+	if (!ins)
+		return 0;
+
+	note = (ev->midi_note.note + 1 + midi_c5note) - 60;
+	if (note < 1 || note > 120)
+		return 1; /* claimed, but out of range -- swallow it */
+
+	if (ev->midi_note.mnstatus == MIDI_NOTEON) {
+		if (midi_flags & MIDI_RECORD_VELOCITY) {
+			vol = (ev->midi_note.velocity * midi_amplification) / 100;
+			vol = CLAMP((vol * 64) / 127, 1, 64);
+		} else {
+			vol = KEYJAZZ_DEFAULTVOL;
+		}
+		song_keydown(KEYJAZZ_NOINST, ins, note, vol, KEYJAZZ_CHAN_AUTO);
+	} else {
+		song_keyup(KEYJAZZ_NOINST, ins, note);
+	}
+
+	return 1;
+}
+
 int midi_engine_handle_event(schism_event_t *ev)
 {
 	struct key_event kk = {.is_synthetic = 0};
@@ -1248,6 +1314,8 @@ int midi_engine_handle_event(schism_event_t *ev)
 
 	switch (ev->type) {
 	case SCHISM_EVENT_MIDI_NOTE:
+		if (midi_multi_route(ev))
+			return 1;
 		if (ev->midi_note.mnstatus == MIDI_NOTEON) {
 			kk.state = KEY_PRESS;
 		} else {
