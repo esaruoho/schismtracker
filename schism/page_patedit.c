@@ -3416,6 +3416,12 @@ static int pattern_editor_insert(struct key_event *k)
 			if (n < 0)
 				return 0;
 
+			/* The note-cut key on a cell that already shows ^^^ clears it, so
+			 * the same key both places and removes a cut without reaching for
+			 * the erase key. */
+			if (n == NOTE_CUT && cur_note->note == NOTE_CUT)
+				n = NOTE_NONE;
+
 			if ((edit_copy_mask & MASK_VOLUME) && mask_note.voleffect == VOLFX_VOLUME) {
 				vol = mask_note.volparam;
 			} else if (cur_note->voleffect == VOLFX_VOLUME) {
