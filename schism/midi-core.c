@@ -55,7 +55,7 @@ static volatile int midi_worker_thread_tried = 0;
 static struct midi_provider *port_providers = NULL;
 
 /* configurable midi stuff */
-int midi_flags = MIDI_TICK_QUANTIZE | MIDI_RECORD_NOTEOFF
+int midi_flags = MIDI_TICK_QUANTIZE | MIDI_RECORD_NOTEOFF | MIDI_CLOCK_SYNC
 		| MIDI_RECORD_VELOCITY | MIDI_RECORD_AFTERTOUCH
 		| MIDI_PITCHBEND;
 
@@ -121,7 +121,7 @@ void cfg_load_midi(cfg_file_t *cfg)
 	char buf[17], buf2[33];
 	uint32_t i;
 
-	CFG_GET_MI(flags, MIDI_TICK_QUANTIZE | MIDI_RECORD_NOTEOFF
+	CFG_GET_MI(flags, MIDI_TICK_QUANTIZE | MIDI_RECORD_NOTEOFF | MIDI_CLOCK_SYNC
 		| MIDI_RECORD_VELOCITY | MIDI_RECORD_AFTERTOUCH
 		| MIDI_PITCHBEND);
 	CFG_GET_MI(pitch_depth, 12);
@@ -1002,6 +1002,81 @@ uint8_t midi_event_length(uint8_t first_byte)
 
 /*----------------------------------------------------------------------------------*/
 
+/* --- MIDI clock slaving -------------------------------------------------
+ * A MIDI clock pulse is exactly one IT tick. Tick length is
+ * freq * 5 / (2 * tempo) samples, so ticks per second is 2 * tempo / 5, which
+ * works out to 24 ticks per beat -- the same 24 PPQN a MIDI clock runs at.
+ * So the incoming clock rate gives the tempo directly, and IT's tempo number
+ * is simply BPM.
+ *
+ * This is timed here on the MIDI thread instead of from the event queue: the
+ * main loop's wake-up latency is bursty and would swamp a ~20ms interval. */
+#define MIDI_CLOCK_PPQN 24
+
+/* plausible interval between clocks, in microseconds, for tempo 31..255 */
+#define MIDI_CLOCK_MIN_US 8000
+#define MIDI_CLOCK_MAX_US 85000
+
+static timer_ticks_t midi_clock_prev = 0;
+static timer_ticks_t midi_clock_total = 0;
+static int midi_clock_pulses = 0;
+
+/* where a MIDI Stop left us, so a following Continue can pick up there */
+static int midi_resume_order = -1;
+static int midi_resume_row = 0;
+
+static void midi_clock_sync_reset(void)
+{
+	midi_clock_prev = 0;
+	midi_clock_total = 0;
+	midi_clock_pulses = 0;
+}
+
+static void midi_clock_pulse(void)
+{
+	timer_ticks_t now, delta;
+	int tempo;
+
+	if (!(midi_flags & MIDI_CLOCK_SYNC) || (midi_flags & MIDI_DISABLE_RECORD))
+		return;
+
+	now = timer_ticks_us();
+
+	if (!midi_clock_prev) {
+		midi_clock_prev = now;
+		return;
+	}
+
+	delta = now - midi_clock_prev;
+	midi_clock_prev = now;
+
+	/* A gap this wrong means the sender paused, the cable went away, or we
+	 * got descheduled -- start the average over rather than lurching. */
+	if (delta < MIDI_CLOCK_MIN_US || delta > MIDI_CLOCK_MAX_US) {
+		midi_clock_total = 0;
+		midi_clock_pulses = 0;
+		return;
+	}
+
+	midi_clock_total += delta;
+	if (++midi_clock_pulses < MIDI_CLOCK_PPQN)
+		return;
+
+	/* Average over a whole beat so single-pulse jitter doesn't move the
+	 * tempo. 24 pulses of accumulated time IS one beat, so BPM falls out. */
+	tempo = (midi_clock_total > 0)
+		? (int)(60000000ULL / (uint64_t)midi_clock_total)
+		: 0;
+	midi_clock_total = 0;
+	midi_clock_pulses = 0;
+
+	if (tempo < 31 || tempo > 255)
+		return;
+
+	if ((int)current_song->current_tempo != tempo)
+		song_set_current_tempo(tempo);
+}
+
 void midi_received_cb(struct midi_port *src, const unsigned char *data, uint32_t len)
 {
 	unsigned char d4[4];
@@ -1053,6 +1128,9 @@ void midi_received_cb(struct midi_port *src, const unsigned char *data, uint32_t
 			break;
 		case 6: /* tick */
 			midi_event_tick();
+			break;
+		case 8: /* clock -- slave the tempo to it */
+			midi_clock_pulse();
 			break;
 		default:
 			/* something else */
@@ -1201,15 +1279,26 @@ int midi_engine_handle_event(schism_event_t *ev)
 		return 1;
 	case SCHISM_EVENT_MIDI_SYSTEM:
 		switch (ev->midi_system.argv) {
-		case 0x8: /* MIDI tick */
+		case 0x8: /* MIDI clock -- handled on the MIDI thread, see
+			   * midi_clock_pulse(); nothing arrives here */
 			break;
-		case 0xA: /* MIDI start */
-		case 0xB: /* MIDI continue */
+		case 0xA: /* MIDI start -- from the top */
+			midi_clock_sync_reset();
 			song_start();
+			break;
+		case 0xB: /* MIDI continue -- resume where we stopped */
+			midi_clock_sync_reset();
+			if (midi_resume_order >= 0)
+				song_start_at_order(midi_resume_order, midi_resume_row);
+			else
+				song_start();
 			break;
 		case 0xC: /* MIDI stop */
 		case 0xF: /* MIDI reset */
 			/* this is helpful when miditracking */
+			midi_clock_sync_reset();
+			midi_resume_order = song_get_current_order();
+			midi_resume_row = song_get_current_row();
 			song_stop();
 			break;
 		};

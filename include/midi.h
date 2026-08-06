@@ -220,6 +220,8 @@ void midi_queue_alloc(int buffer_size, int channels, int samples_per_second);
 #define MIDI_RECORD_AFTERTOUCH  0x00000010
 #define MIDI_CUT_NOTE_OFF       0x00000020
 #define MIDI_PITCHBEND          0x00000040
+/* follow an incoming MIDI clock (0xF8): slave the tempo to it */
+#define MIDI_CLOCK_SYNC         0x00000080
 #define MIDI_DISABLE_RECORD     0x00010000
 
 extern int midi_flags, midi_pitch_depth, midi_amplification, midi_c5note;
