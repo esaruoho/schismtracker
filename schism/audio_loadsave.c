@@ -159,6 +159,17 @@ void song_new(int flags)
 	if ((flags & KEEP_ORDERLIST) == 0) {
 		memset(current_song->orderlist, ORDER_LAST, sizeof(current_song->orderlist));
 		memset(current_song->title, 0, sizeof(current_song->title));
+		{
+			/* Stamp a blank song with the moment it was started, so the
+			 * creation time ends up saved in the file without anyone having
+			 * to read a clock and type it. */
+			time_t now = time(NULL);
+			struct tm tm;
+
+			localtime_r(&now, &tm);
+			strftime(current_song->title, sizeof(current_song->title),
+				"%Y-%m-%d %H:%M", &tm);
+		}
 		memset(current_song->message, 0, MAX_MESSAGE);
 
 		for (i = 0; i < MAX_CHANNELS; i++) {
