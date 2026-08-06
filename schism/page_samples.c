@@ -2032,6 +2032,15 @@ void sample_synchronize_to_instrument(void)
 	}
 }
 
+/* F3 <-> F4 carry the cursor across: arriving on the sample list lands on the
+ * slot matching wherever the instrument list was left, instead of resetting to
+ * whatever this list happened to be showing. */
+static void sample_list_set_page(void)
+{
+	sample_set(instrument_get_current());
+	sample_list_reposition();
+}
+
 void sample_list_load_page(struct page *page)
 {
 	vgamem_ovl_alloc(&sample_image);
@@ -2040,7 +2049,7 @@ void sample_list_load_page(struct page *page)
 	page->draw_const = sample_list_draw_const;
 	page->predraw_hook = sample_list_predraw_hook;
 	page->handle_key = sample_list_handle_key;
-	page->set_page = sample_list_reposition;
+	page->set_page = sample_list_set_page;
 	page->total_widgets = 20;
 	page->widgets = widgets_samplelist;
 	page->help_index = HELP_SAMPLE_LIST;

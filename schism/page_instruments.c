@@ -2778,6 +2778,13 @@ static void instrument_list_pitch_draw_const(void)
 /* --------------------------------------------------------------------- */
 /* load_page functions */
 
+/* the other half of the F3 <-> F4 cursor carry (see page_samples.c) */
+static void instrument_list_set_page(void)
+{
+	instrument_set(sample_get_current());
+	instrument_list_reposition();
+}
+
 static void _load_page_common(struct page *page, struct widget *page_widgets)
 {
 	int i;
@@ -2797,7 +2804,7 @@ static void _load_page_common(struct page *page, struct widget *page_widgets)
 	page->handle_key = instrument_list_handle_key;
 	page->widgets = page_widgets;
 	page->help_index = HELP_INSTRUMENT_LIST;
-	page->set_page = instrument_list_reposition;
+	page->set_page = instrument_list_set_page;
 
 	/* the first five widgets are the same for all four pages. */
 
