@@ -25,6 +25,7 @@
 
 #include "it.h"
 #include "config.h"
+#include "midi.h"
 #include "keyboard.h"
 #include "util.h"
 #include "mem.h"
@@ -431,6 +432,11 @@ void cfg_save(void)
 
 	cfg_save_info(&cfg);
 	cfg_save_patedit(&cfg);
+	/* ports that were switched on, and the MIDI flags (clock sync, multitimbral
+	 * input, ...) -- only once the engine is up, or this would delete every
+	 * saved port instead of writing them */
+	if (midi_engine_started())
+		cfg_save_midi(&cfg);
 	cfg_save_audio(&cfg);
 	cfg_save_palette(&cfg);
 	cfg_save_disko(&cfg);
@@ -542,6 +548,8 @@ void cfg_atexit_save(void)
 	free(ptr);
 
 	cfg_save_world(&cfg);
+	if (midi_engine_started())
+		cfg_save_midi(&cfg);
 
 	/* hm... most of the time probably nothing's different, so saving the
 	config file here just serves to make the backup useless. maybe add a

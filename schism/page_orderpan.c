@@ -560,6 +560,15 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 			n = current_song->orderlist[--new_order];
 		if (n >= 0 && n < 200) {
 			set_current_pattern(n);
+			/* Carry the highlighted channel across, the way the info page does:
+			 * widgets 1..64 on this page are the channels, so the focused one
+			 * says which track you were looking at. Focus on the order list
+			 * itself means no channel was chosen, so leave it alone. */
+			if (ACTIVE_PAGE.selected_widget >= 1
+				&& ACTIVE_PAGE.selected_widget <= MAX_CHANNELS)
+				set_current_channel(ACTIVE_PAGE.selected_widget);
+			/* land and stay put, rather than being dragged off by follow mode */
+			midi_playback_tracing = playback_tracing = 0;
 			set_page(PAGE_PATTERN_EDITOR);
 		}
 		return 1;

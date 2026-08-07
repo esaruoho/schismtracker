@@ -125,6 +125,8 @@ struct midi_port {
 
 /* schism calls these directly */
 int midi_engine_start(void);
+/* nonzero once the engine is up; port config must not be saved before then */
+int midi_engine_started(void);
 void midi_engine_reset(void);
 void midi_engine_stop(void);
 void midi_engine_poll_ports(void);

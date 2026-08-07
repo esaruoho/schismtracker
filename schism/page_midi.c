@@ -379,7 +379,7 @@ void midi_load_page(struct page *page)
 	widget_create_button(widgets_midi + 13, 2, 41, 27, 16, 14, 12, 12, 12,
 		midi_output_config, "MIDI Output Configuration", 2);
 	widget_create_button(widgets_midi + 14, 2, 44, 27, 13, 14, 12, 12, 12,
-		cfg_midipage_save, "Save Output Configuration", 2);
+		cfg_midipage_save, "Save MIDI Configuration", 2);
 	/* follow an incoming MIDI clock; sits below "Cut note off" */
 	widget_create_toggle(widgets_midi + 15, 20, 36, 6, 16, 10, 10, 10, update_midi_values);
 	/* route incoming notes by MIDI channel */

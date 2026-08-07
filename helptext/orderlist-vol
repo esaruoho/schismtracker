@@ -31,4 +31,5 @@
 :   Shift-Right       Quicksave pattern to .wav (the playing
 :                     one if F5/F6 is running)
 :   Ctrl-Shift-Right  Dump all song samples as .wavs
-:   Enter / G         Go to the pattern under the cursor
+:   Enter / G         Go to the pattern under the cursor,
+:                     on the highlighted channel

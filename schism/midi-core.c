@@ -286,6 +286,15 @@ void midi_engine_poll_ports(void)
 	mt_mutex_unlock(midi_mutex);
 }
 
+/* Has the MIDI engine actually come up? Saving the port configuration when it
+ * hasn't would write no ports and then delete every saved one, wiping the lot --
+ * which is exactly what a headless run would do, since it exits before
+ * midi_engine_start() is ever reached. */
+int midi_engine_started(void)
+{
+	return !!atm_load(&_connected);
+}
+
 int midi_engine_start(void)
 {
 	if (atm_load(&_connected))
