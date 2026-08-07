@@ -550,10 +550,17 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 			return 0;
 		if (k->state == KEY_PRESS)
 			return 1;
-		n = current_song->orderlist[new_order];
-		while (n >= 200 && new_order > 0)
-			n = current_song->orderlist[--new_order];
-		if (n < 200) {
+		/* If something is playing, go to the pattern being heard rather than
+		 * the one under the cursor -- same reasoning as Shift-Right above, and
+		 * this covers both F5 playback and an F6 pattern loop. */
+		if (song_get_mode() != MODE_STOPPED) {
+			n = song_get_playing_pattern();
+		} else {
+			n = current_song->orderlist[new_order];
+			while (n >= 200 && new_order > 0)
+				n = current_song->orderlist[--new_order];
+		}
+		if (n >= 0 && n < 200) {
 			set_current_pattern(n);
 			set_page(PAGE_PATTERN_EDITOR);
 		}
@@ -593,16 +600,25 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 			if (k->state == KEY_RELEASE || k->is_repeat)
 				return 1;
 
-			/* While the song is playing, grab the pattern actually being heard
+			/* While anything is playing, grab the pattern actually being heard
 			 * rather than whatever the cursor was last left on -- the point of
-			 * doing this mid-playback is to capture what just went past. */
-			order = (song_get_mode() == MODE_PLAYING)
-				? song_get_current_order()
-				: current_order;
+			 * doing this mid-playback is to capture what just went past. Asking
+			 * the player for the pattern covers F5 song playback and F6 pattern
+			 * loop alike; the latter reports MODE_PATTERN_LOOP, not
+			 * MODE_PLAYING, and used to fall through to the cursor. */
+			if (song_get_mode() != MODE_STOPPED) {
+				n = song_get_playing_pattern();
+			} else {
+				order = current_order;
+				n = current_song->orderlist[order];
+				if (n >= 200) {
+					status_text_flash("No pattern at order %d", order);
+					return 1;
+				}
+			}
 
-			n = current_song->orderlist[order];
-			if (n >= 200)
-				status_text_flash("No pattern at order %d", order);
+			if (n < 0 || n >= 200)
+				status_text_flash("Nothing playing to quicksave");
 			else
 				song_pattern_to_quicksave_file(n);
 			return 1;
