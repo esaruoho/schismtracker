@@ -37,5 +37,4 @@
 :   Right             On 3rd digit: render pattern to a sample
 :   Shift-Right       Quicksave pattern to .wav (the playing
 :                     one if F5/F6 is running)
-:   Enter / G         Go to pattern (the playing one if
-:                     F5/F6 is running)
+:   Enter / G         Go to the pattern under the cursor

@@ -550,16 +550,14 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 			return 0;
 		if (k->state == KEY_PRESS)
 			return 1;
-		/* If something is playing, go to the pattern being heard rather than
-		 * the one under the cursor -- same reasoning as Shift-Right above, and
-		 * this covers both F5 playback and an F6 pattern loop. */
-		if (song_get_mode() != MODE_STOPPED) {
-			n = song_get_playing_pattern();
-		} else {
-			n = current_song->orderlist[new_order];
-			while (n >= 200 && new_order > 0)
-				n = current_song->orderlist[--new_order];
-		}
+		/* Always the pattern under the cursor, playing or not: pointing at an
+		 * order and pressing G is how you say "take me there", so following the
+		 * playhead instead would make it impossible to go anywhere else while
+		 * the song runs. (Shift-Right does follow the playhead -- that one is
+		 * "capture what I can hear", which is a different question.) */
+		n = current_song->orderlist[new_order];
+		while (n >= 200 && new_order > 0)
+			n = current_song->orderlist[--new_order];
 		if (n >= 0 && n < 200) {
 			set_current_pattern(n);
 			set_page(PAGE_PATTERN_EDITOR);
