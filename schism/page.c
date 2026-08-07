@@ -420,12 +420,12 @@ static int rshift_modified = 0;
 static int rshift_tap_page(void)
 {
 	switch (status.current_page) {
-	case PAGE_SAMPLE_LIST:
-	case PAGE_INFO:
-	case PAGE_PATTERN_EDITOR:
-		return 1;
+	case PAGE_MESSAGE:
+		/* the song message is somewhere you type prose, and shift belongs to
+		 * capital letters there */
+		return 0;
 	default:
-		return page_is_instrument_list(status.current_page);
+		return 1;
 	}
 }
 
