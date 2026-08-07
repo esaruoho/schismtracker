@@ -30,3 +30,8 @@
 :   Alt-S/A           Pan all unmuted channels Stereo/Amiga Stereo
 :   Alt-Backslash     Linear panning (left to right)
 :   Alt-Slash         Linear panning (right to left)
+| Fork additions.
+:   Alt-D             Clone pattern to a free slot and insert it
+:   M                 Toggle clone mute-wipe (wipes muted chans)
+:   Right             On 3rd digit: render pattern to a sample
+:   Shift-Right       Quicksave pattern to a .wav

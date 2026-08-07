@@ -244,3 +244,8 @@
 !   Ctrl-Z           Change MIDI playback trigger
 !   Ctrl-Z           Change MIDI playback trigger (also Ctrl-X)
 |   Alt-Scroll Lock  Toggle MIDI input
+| Fork additions.
+:   Ctrl-Down         Replicate rows above cursor down track
+:   Ctrl-Shift-Down   Replicate rows above cursor, all chans
+:   1                 On a note cut (^^^): clear it
+:   F2                Options; row count is remembered for new

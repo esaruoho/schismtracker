@@ -48,3 +48,5 @@
 |   Alt-Grey -   Decrease C-5 Frequency by 1 octave
 |   Ctrl-Grey +  Increase C-5 Frequency by 1 semitone
 |   Ctrl-Grey -  Decrease C-5 Frequency by 1 semitone
+| Fork additions.
+:   Shift-Enter       In loader, on a module: load all samples

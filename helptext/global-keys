@@ -26,6 +26,10 @@
 |   F12               Song Variables & Directory Configuration
 |   Ctrl-F12          Palette Configuration
 :   Shift-F12         Font Editor
+:   Shift-F4          Build multitimbral instruments (ch 10 = kit)
+:   Ctrl-O            Render current pattern to a sample
+:   Shift-Ctrl-O      Render pattern to one sample per channel
+:   Ctrl-B            Render pattern to a sample, bound to it
 |
 |   { }               Decrease/Increase playback speed
 :   Ctrl-[ ]          Decrease/Increase playback tempo
