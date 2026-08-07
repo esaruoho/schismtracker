@@ -21,3 +21,6 @@
 | Alt-R             Reverse output channels
 |
 | G                 Goto pattern currently playing
+| Fork additions.
+:   Enter             Go to the pattern being played
+:   Shift-Right       Quicksave that pattern to a .wav

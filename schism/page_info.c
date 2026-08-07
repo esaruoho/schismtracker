@@ -1025,6 +1025,16 @@ static void info_page_redraw(void)
 
 /* --------------------------------------------------------------------- */
 
+/* The pattern this page is really about: whatever is being heard, or the current
+ * pattern when nothing is playing. Covers F5 song playback and an F6 pattern loop
+ * alike, since it asks the player rather than reasoning about modes. */
+static int info_target_pattern(void)
+{
+	return (song_get_mode() != MODE_STOPPED)
+		? song_get_playing_pattern()
+		: get_current_pattern();
+}
+
 static int info_page_handle_key(struct key_event * k)
 {
 	int n, p, order;
@@ -1207,6 +1217,20 @@ static int info_page_handle_key(struct key_event * k)
 			selected_channel++;
 		break;
 	case SCHISM_KEYSYM_RIGHT:
+		/* Shift-Right quicksaves the pattern being heard, the same gesture as on
+		 * the order list -- this page is where you watch playback, so it is the
+		 * obvious place to reach for it. */
+		if ((k->mod & SCHISM_KEYMOD_SHIFT)
+			&& !(k->mod & (SCHISM_KEYMOD_CTRL | SCHISM_KEYMOD_ALT))) {
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+			n = info_target_pattern();
+			if (n < 0 || n >= 200)
+				status_text_flash("Nothing playing to quicksave");
+			else
+				song_pattern_to_quicksave_file(n);
+			return 1;
+		}
 		if (!NO_MODIFIER(k->mod) && !(k->mod & SCHISM_KEYMOD_ALT))
 			return 0;
 		if (k->state == KEY_RELEASE)
@@ -1214,6 +1238,19 @@ static int info_page_handle_key(struct key_event * k)
 		if (selected_channel < MAX_CHANNELS)
 			selected_channel++;
 		break;
+	case SCHISM_KEYSYM_RETURN:
+	case SCHISM_KEYSYM_KP_ENTER:
+		/* jump into the pattern being heard */
+		if (!NO_MODIFIER(k->mod))
+			return 0;
+		if (k->state == KEY_PRESS)
+			return 1;
+		n = info_target_pattern();
+		if (n >= 0 && n < 200) {
+			set_current_pattern(n);
+			set_page(PAGE_PATTERN_EDITOR);
+		}
+		return 1;
 	case SCHISM_KEYSYM_HOME:
 		if (!NO_MODIFIER(k->mod))
 			return 0;
