@@ -58,6 +58,8 @@ int cfg_video_want_menu_bar = 0;
 
 // If these are set to zero, it means to use the
 // system key repeat or the default fallback values.
+char cfg_last_song[SCHISM_PATH_MAX + 1] = {0};
+int cfg_no_remember_last_song = 0;
 int cfg_pattern_default_rows = 64;
 int cfg_kbd_repeat_delay = 0;
 int cfg_kbd_repeat_rate = 0;
@@ -265,6 +267,7 @@ void cfg_load(void)
 
 	cfg_get_string(&cfg, "Directories", "module_pattern", cfg_module_pattern, ARRAY_SIZE(cfg_module_pattern), NULL);
 	cfg_get_string(&cfg, "Directories", "export_pattern", cfg_export_pattern, ARRAY_SIZE(cfg_export_pattern), NULL);
+	cfg_get_string(&cfg, "General", "last_song", cfg_last_song, ARRAY_SIZE(cfg_last_song), NULL);
 
 	ptr = cfg_get_string(&cfg, "General", "numlock_setting", NULL, 0, NULL);
 	if (!ptr)
@@ -396,6 +399,31 @@ void cfg_load(void)
 	cfg_free(&cfg);
 }
 
+/* Remember the module that is open, right now rather than at exit -- a crash or a
+ * kill would otherwise lose it, which is exactly when you most want it back. */
+void cfg_save_last_song(const char *path)
+{
+	char *ptr;
+	cfg_file_t cfg;
+
+	if (cfg_no_remember_last_song)
+		return;
+
+	strncpy(cfg_last_song, path ? path : "", ARRAY_SIZE(cfg_last_song) - 1);
+	cfg_last_song[ARRAY_SIZE(cfg_last_song) - 1] = '\0';
+
+	ptr = dmoz_path_concat(cfg_dir_dotschism, "config");
+	if (!ptr)
+		return;
+	cfg_init(&cfg, ptr);
+	free(ptr);
+
+	cfg_set_string(&cfg, "General", "last_song", cfg_last_song);
+
+	cfg_write(&cfg);
+	cfg_free(&cfg);
+}
+
 void cfg_midipage_save(void)
 {
 	char *ptr;
@@ -429,6 +457,7 @@ void cfg_save(void)
 	/* No, it's not a directory, but whatever. */
 	cfg_set_string(&cfg, "Directories", "module_pattern", cfg_module_pattern);
 	cfg_set_string(&cfg, "Directories", "export_pattern", cfg_export_pattern);
+	cfg_set_string(&cfg, "General", "last_song", cfg_last_song);
 
 	cfg_save_info(&cfg);
 	cfg_save_patedit(&cfg);

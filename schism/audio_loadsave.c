@@ -28,6 +28,7 @@
 #include "dialog.h"
 #include "fakemem.h"
 #include "it.h"
+#include "config.h"
 #include "song.h"
 #include "slurp.h"
 #include "page.h"
@@ -315,6 +316,7 @@ int song_load_unchecked(const char *file)
 	}
 
 	song_set_filename(file);
+	cfg_save_last_song(file);
 
 	song_lock_audio();
 	csf_free(current_song);

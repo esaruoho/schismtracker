@@ -55,6 +55,10 @@ extern int cfg_kbd_repeat_rate;
 
 extern char cfg_dir_modules[SCHISM_PATH_MAX + 1], cfg_dir_samples[SCHISM_PATH_MAX + 1], cfg_dir_instruments[SCHISM_PATH_MAX + 1];
 extern char *cfg_dir_dotschism; /* the full path to ~/.schism */
+/* the module that was open last, reloaded on the next start */
+extern char cfg_last_song[SCHISM_PATH_MAX + 1];
+/* set for batch runs, which shouldn't rewrite the interactive session's state */
+extern int cfg_no_remember_last_song;
 extern char *cfg_font;
 
 extern int cfg_str_date_format;
@@ -68,6 +72,7 @@ void cfg_load(void);
 void cfg_save(void);
 void cfg_preferences_save(void);
 void cfg_midipage_save(void);
+void cfg_save_last_song(const char *path);
 void cfg_atexit_save(void); /* this only saves a handful of settings, not everything */
 void cfg_save_output(void);
 

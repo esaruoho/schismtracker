@@ -1312,6 +1312,10 @@ int schism_main(int argc, char **argv)
 			return 1;
 		}
 
+		/* a batch render is a tool, not a session: don't let it change which
+		 * module the interactive program reopens */
+		cfg_no_remember_last_song = 1;
+
 		// Initialize modplug only
 		song_init_modplug();
 
@@ -1474,6 +1478,15 @@ int schism_main(int argc, char **argv)
 
 	load_pages();
 	main_song_changed_cb();
+
+	/* Nothing named on the command line: pick up where we left off, if that
+	 * module is still where it was. */
+	if (!initial_song && cfg_last_song[0]) {
+		struct stat st;
+
+		if (os_stat(cfg_last_song, &st) == 0 && S_ISREG(st.st_mode))
+			initial_song = str_dup(cfg_last_song);
+	}
 
 	if (initial_song && !initial_dir) {
 		initial_dir = dmoz_path_get_parent_directory(initial_song);
