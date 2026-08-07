@@ -31,8 +31,8 @@
 :   Alt-Backslash     Linear panning (left to right)
 :   Alt-Slash         Linear panning (right to left)
 | Fork additions.
-:   Alt-D             Clone pattern to a free slot and insert it
-:   M                 Toggle clone mute-wipe (wipes muted chans)
+:   Alt-D             Clone pattern to a free slot, insert it
+:   Shift-Alt-D       Same, but wipe the muted channels
 :   Alt-E             Double pattern length, repeating it
 :   Right             On 3rd digit: render pattern to a sample
 :   Shift-Right       Quicksave pattern to .wav (the playing

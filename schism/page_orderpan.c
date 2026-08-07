@@ -45,10 +45,6 @@ static int orderlist_cursor_pos = 0;
 
 static unsigned char saved_orderlist[256];
 
-/* When Alt-D clones a pattern, wipe the currently-muted channels in the copy
- * (leaving a note-cut at row 0) instead of copying them verbatim. Toggled with
- * M. On by default, matching the impulse-tracker fork. */
-static int clone_mute_wipe = 1;
 static int _did_save_orderlist = 0;
 
 /* --------------------------------------------------------------------- */
@@ -262,7 +258,9 @@ static int orderlist_find_free_pattern(int except)
 /* Clone this order's pattern into the first free slot, insert the copy into the
  * order list right after the current row, and move the cursor onto it -- so
  * "duplicate this bit and carry on arranging" is one keystroke. */
-static void orderlist_clone_pattern(void)
+/* wipe_muted: clear the currently-muted channels in the copy, leaving a note-cut
+ * at row 0, instead of copying them verbatim */
+static void orderlist_clone_pattern(int wipe_muted)
 {
 	song_note_t *src, *dst;
 	int pat, newpat, rows, chan, row;
@@ -296,7 +294,7 @@ static void orderlist_clone_pattern(void)
 	song_lock_audio();
 	memcpy(dst, src, MAX_CHANNELS * rows * sizeof(song_note_t));
 
-	if (clone_mute_wipe) {
+	if (wipe_muted) {
 		for (chan = 0; chan < MAX_CHANNELS; chan++) {
 			if (!(current_song->channels[chan].flags & CHN_MUTE))
 				continue;
@@ -317,7 +315,7 @@ static void orderlist_clone_pattern(void)
 	set_current_order(current_order + 1);
 
 	status_text_flash("Pattern %d cloned to %d%s", pat, newpat,
-		clone_mute_wipe ? " (muted channels wiped)" : "");
+		wipe_muted ? " (muted channels wiped)" : "");
 	status.flags |= NEED_UPDATE | SONG_NEEDS_SAVE;
 }
 
@@ -795,10 +793,12 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		break;
 
 	case SCHISM_KEYSYM_d:
+		/* Alt-D clones the pattern as it is; adding shift wipes the channels that
+		 * are currently muted, so the copy starts from what you can hear. */
 		if (k->mod & SCHISM_KEYMOD_ALT) {
 			if (k->state == KEY_RELEASE || k->is_repeat)
 				return 1;
-			orderlist_clone_pattern();
+			orderlist_clone_pattern(!!(k->mod & SCHISM_KEYMOD_SHIFT));
 			return 1;
 		}
 		return 0;
@@ -839,15 +839,6 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 			return 1;
 		}
 		return 0;
-
-	case SCHISM_KEYSYM_m:
-		if (!NO_MODIFIER(k->mod))
-			return 0;
-		if (k->state == KEY_RELEASE)
-			return 1;
-		clone_mute_wipe = !clone_mute_wipe;
-		status_text_flash("Clone mute-wipe %s", clone_mute_wipe ? "enabled" : "disabled");
-		return 1;
 
 	case SCHISM_KEYSYM_r:
 		if (k->mod & SCHISM_KEYMOD_ALT) {
