@@ -461,6 +461,26 @@ static char *mangle_filename(const char *in, const char *mid, const char *ext)
 	return ret;
 }
 
+/* Render one pattern to its own file. Unlike song_export this is synchronous and
+ * finishes before it returns, so a caller doesn't have to pump disko_sync. */
+int song_export_pattern(const char *filename, const char *type, int pattern)
+{
+	const struct save_format *format = get_save_format(song_export_formats, type);
+	char *mangle;
+	int r;
+
+	if (!format)
+		return SAVE_INTERNAL_ERROR;
+
+	/* per-channel splitting makes no sense for this, so never mangle in ".%c" */
+	mangle = mangle_filename(filename, NULL, format->ext);
+
+	r = disko_writeout_pattern_file(mangle, format, pattern);
+	free(mangle);
+
+	return (r == DW_OK) ? SAVE_SUCCESS : SAVE_FILE_ERROR;
+}
+
 int song_export(const char *filename, const char *type)
 {
 	const struct save_format *format = get_save_format(song_export_formats, type);

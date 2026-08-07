@@ -137,6 +137,8 @@ const char *fmt_strerror(int n);
 
 int song_save(const char *file, const char *type); // IT, S3M
 int song_export(const char *file, const char *type); // WAV
+/* render a single pattern to its own file; synchronous, no disko_sync needed */
+int song_export_pattern(const char *file, const char *type, int pattern);
 
 /* 'num' is only for status text feedback -- all of the sample's data is taken from 'smp'.
 this provides an eventual mechanism for saving samples modified from disk (not yet implemented) */

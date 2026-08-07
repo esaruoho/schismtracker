@@ -127,6 +127,8 @@ static char *initial_dir = NULL;
 
 /* diskwrite? */
 static char *diskwrite_to = NULL;
+/* --pattern: a pattern number, or "all"; dumps patterns instead of the song */
+static char *diskwrite_pattern = NULL;
 
 /* startup flags */
 enum {
@@ -168,6 +170,7 @@ enum {
 	O_HOOKS, O_NO_HOOKS,
 #endif
 	O_DISKWRITE,
+	O_PATTERN,
 	O_DEBUG,
 	O_VERSION,
 	O_HEADLESS,
@@ -194,6 +197,7 @@ static void parse_options(int argc, char **argv)
 		{"play", 0, NULL, O_PLAY},
 		{"no-play", 0, NULL, O_NO_PLAY},
 		{"diskwrite", 1, NULL, O_DISKWRITE},
+		{"pattern", 1, NULL, O_PATTERN},
 		{"font-editor", 0, NULL, O_FONTEDIT},
 		{"no-font-editor", 0, NULL, O_NO_FONTEDIT},
 #if ENABLE_HOOKS
@@ -268,6 +272,9 @@ static void parse_options(int argc, char **argv)
 		case O_DISKWRITE:
 			diskwrite_to = optarg;
 			break;
+		case O_PATTERN:
+			diskwrite_pattern = optarg;
+			break;
 #if ENABLE_HOOKS
 		case O_HOOKS:
 			BITARRAY_SET(startup_flags, SF_HOOKS);
@@ -293,6 +300,7 @@ static void parse_options(int argc, char **argv)
 				"  -f, --fullscreen (-F, --no-fullscreen)\n"
 				"  -p, --play (-P, --no-play)\n"
 				"      --diskwrite=FILENAME\n"
+				"      --pattern=N|all (with --diskwrite: dump patterns, not the song)\n"
 				"      --font-editor (--no-font-editor)\n"
 #if ENABLE_HOOKS
 				"      --hooks (--no-hooks)\n"
@@ -1305,6 +1313,64 @@ int schism_main(int argc, char **argv)
 			const char *driver = (strcasestr(diskwrite_to, ".aif")
 					  ? (multi ? "MAIFF" : "AIFF")
 					  : (multi ? "MWAV" : "WAV"));
+
+			/* --pattern dumps pattern audio instead of the whole song. These
+			 * renders are synchronous, so they need no disko_sync pumping. */
+			if (diskwrite_pattern) {
+				const char *pdriver = strcasestr(diskwrite_to, ".aif") ? "AIFF" : "WAV";
+				int done = 0;
+
+				if (!strcasecmp(diskwrite_pattern, "all")) {
+					int pat;
+
+					for (pat = 0; pat < MAX_PATTERNS; pat++) {
+						char *out;
+
+						if (csf_pattern_is_empty(current_song, pat))
+							continue;
+
+						if (asprintf(&out, "%s-pat%03d", diskwrite_to, pat) < 0) {
+							fprintf(stderr, "Error: out of memory\n");
+							schism_exit(1);
+						}
+
+						if (song_export_pattern(out, pdriver, pat) != SAVE_SUCCESS) {
+							fprintf(stderr, "Error: could not write pattern %d\n", pat);
+							free(out);
+							schism_exit(1);
+						}
+
+						printf("%s-pat%03d (pattern %d)\n", diskwrite_to, pat, pat);
+						free(out);
+						done++;
+					}
+
+					if (!done) {
+						fprintf(stderr, "Error: %s has no patterns with anything in them\n",
+							initial_song);
+						schism_exit(1);
+					}
+				} else {
+					char *end;
+					long pat = strtol(diskwrite_pattern, &end, 10);
+
+					if (*end || pat < 0 || pat >= MAX_PATTERNS) {
+						fprintf(stderr, "Error: --pattern wants a number 0..%d, or \"all\"\n",
+							MAX_PATTERNS - 1);
+						schism_exit(1);
+					}
+
+					if (song_export_pattern(diskwrite_to, pdriver, pat) != SAVE_SUCCESS) {
+						fprintf(stderr, "Error: could not write pattern %ld\n", pat);
+						schism_exit(1);
+					}
+
+					printf("%s (pattern %ld)\n", diskwrite_to, pat);
+				}
+
+				schism_exit(0);
+			}
+
 			if (song_export(diskwrite_to, driver) != SAVE_SUCCESS) {
 				schism_exit(1);
 			}
