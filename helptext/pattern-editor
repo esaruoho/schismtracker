@@ -249,4 +249,5 @@
 :   Ctrl-Shift-Down   Replicate rows above cursor, all chans
 :   1                 On a note cut (^^^): clear it
 :   Alt-Up/Alt-Down   Page up/down (as Page Up/Page Down)
+:   Shift-Alt-Up/Down Home / End
 :   F2                Options; row count is remembered for new

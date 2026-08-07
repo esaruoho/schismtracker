@@ -4096,11 +4096,24 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 		recalculate_visible_area();
 		pattern_editor_reposition();
 		break;
-	/* Alt-Up/Alt-Down page the cursor, the same as Page Up/Page Down. Useful on
-	 * keyboards that have no page keys, or where they are a chord away. */
+	/* Alt-Up/Alt-Down page the cursor, the same as Page Up/Page Down, and adding
+	 * shift makes them Home/End. Useful on keyboards that have no page or
+	 * home/end keys, or where they are a chord away. */
 	case SCHISM_KEYSYM_UP:
 		if (k->state == KEY_RELEASE)
 			return 1;
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			/* same as Home */
+			if (current_position == 0) {
+				if (invert_home_end ? (current_row != 0) : (current_channel == 1))
+					current_row = 0;
+				else
+					current_channel = 1;
+			} else {
+				current_position = 0;
+			}
+			return -1;
+		}
 		{
 			int rh = current_song->row_highlight_major
 				? current_song->row_highlight_major : 16;
@@ -4114,6 +4127,19 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 	case SCHISM_KEYSYM_DOWN:
 		if (k->state == KEY_RELEASE)
 			return 1;
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			/* same as End */
+			n = song_find_last_channel() + 1;
+			if (current_position == 8) {
+				if (invert_home_end ? (current_row != max_row_number) : (current_channel == n))
+					current_row = max_row_number;
+				else
+					current_channel = n;
+			} else {
+				current_position = 8;
+			}
+			return -1;
+		}
 		current_row += current_song->row_highlight_major
 			? current_song->row_highlight_major : 16;
 		return -1;
@@ -4820,10 +4846,15 @@ static int pattern_editor_handle_key_cb(struct key_event * k)
 	if (max_row_number < 0)
 		max_row_number = 0;
 
-	/* Ctrl-Shift-Down is the replicate-whole-pattern gesture, so it must not
-	 * also start a shift-selection on its way to the ctrl handler. */
-	if ((k->mod & SCHISM_KEYMOD_SHIFT)
-		&& !((k->mod & SCHISM_KEYMOD_CTRL) && k->sym == SCHISM_KEYSYM_DOWN)) {
+	/* Some shifted chords are gestures rather than cursor movement, so they must
+	 * not also start a shift-selection on their way to the modifier handlers:
+	 * Ctrl-Shift-Down replicates the whole pattern, and Shift-Alt-Up/Down are
+	 * Home/End. */
+	int shift_gesture = ((k->mod & SCHISM_KEYMOD_CTRL) && k->sym == SCHISM_KEYSYM_DOWN)
+		|| ((k->mod & SCHISM_KEYMOD_ALT)
+			&& (k->sym == SCHISM_KEYSYM_UP || k->sym == SCHISM_KEYSYM_DOWN));
+
+	if ((k->mod & SCHISM_KEYMOD_SHIFT) && !shift_gesture) {
 		switch (k->sym) {
 		case SCHISM_KEYSYM_LEFT:
 		case SCHISM_KEYSYM_RIGHT:
