@@ -35,4 +35,5 @@
 :   M                 Toggle clone mute-wipe (wipes muted chans)
 :   Alt-E             Double pattern length, repeating it
 :   Right             On 3rd digit: render pattern to a sample
-:   Shift-Right       Quicksave pattern to a .wav
+:   Shift-Right       Quicksave pattern to .wav (playing one
+:                     if the song is playing)

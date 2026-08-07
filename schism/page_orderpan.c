@@ -588,11 +588,21 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		 * wherever the sample loader was last browsing -- from any column of
 		 * the pattern cell, since it never moves the cursor anyway. */
 		if ((k->mod & SCHISM_KEYMOD_SHIFT) && NO_CAM_MODS(k->mod)) {
+			int order;
+
 			if (k->state == KEY_RELEASE || k->is_repeat)
 				return 1;
-			n = current_song->orderlist[current_order];
+
+			/* While the song is playing, grab the pattern actually being heard
+			 * rather than whatever the cursor was last left on -- the point of
+			 * doing this mid-playback is to capture what just went past. */
+			order = (song_get_mode() == MODE_PLAYING)
+				? song_get_current_order()
+				: current_order;
+
+			n = current_song->orderlist[order];
 			if (n >= 200)
-				status_text_flash("No pattern at order %d", current_order);
+				status_text_flash("No pattern at order %d", order);
 			else
 				song_pattern_to_quicksave_file(n);
 			return 1;
