@@ -293,6 +293,9 @@ void set_current_channel(int channel);
 int get_current_row(void);
 void set_current_row(int row);
 int get_current_pattern(void);
+/* grow a pattern, repeating its contents to fill the new rows;
+returns breaks cleared, or -1 if it did nothing */
+int pattern_grow_tiled(int pattern, int new_rows);
 void set_current_pattern(int pattern);
 /* This is the F7 key handlers: it starts at the marked position if there
  * is one, or the current position if not. */

@@ -363,6 +363,28 @@ static int pattern_tile_to_length(int pattern, int old_rows, int new_rows)
 	return cleared;
 }
 
+/* Grow a pattern to new_rows, filling the new space by repeating what is already
+ * there. Shared by the F2 options row count and the order list's Alt-E, so both
+ * tile the same way and handle carried pattern breaks the same way.
+ *
+ * Returns the number of pattern breaks cleared, or -1 if nothing was done. */
+int pattern_grow_tiled(int pattern, int new_rows)
+{
+	int old_rows;
+
+	if (pattern < 0 || pattern >= MAX_PATTERNS)
+		return -1;
+
+	new_rows = CLAMP(new_rows, MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
+	old_rows = song_get_pattern(pattern, NULL);
+	if (new_rows <= old_rows)
+		return -1;
+
+	song_pattern_resize(pattern, new_rows);
+
+	return pattern_tile_to_length(pattern, old_rows, new_rows);
+}
+
 static void options_close(void *data)
 {
 	int old_size, new_size;
@@ -380,9 +402,8 @@ static void options_close(void *data)
 	/* remember this length for patterns that haven't been used yet */
 	cfg_pattern_default_rows = CLAMP(new_size, MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);
 	if (old_size != new_size) {
-		song_pattern_resize(current_pattern, new_size);
 		if (new_size > old_size) {
-			int cleared = pattern_tile_to_length(current_pattern, old_size, new_size);
+			int cleared = pattern_grow_tiled(current_pattern, new_size);
 
 			if (cleared) {
 				status_text_flash("Pattern %d tiled to %d rows, %d break%s cleared",
@@ -391,6 +412,8 @@ static void options_close(void *data)
 				status_text_flash("Pattern %d: %d rows tiled to %d",
 					current_pattern, old_size, new_size);
 			}
+		} else {
+			song_pattern_resize(current_pattern, new_size);
 		}
 		current_row = MIN(current_row, new_size - 1);
 		pattern_editor_reposition();

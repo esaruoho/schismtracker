@@ -760,6 +760,43 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		}
 		return 0;
 
+	case SCHISM_KEYSYM_e:
+		/* Alt-E doubles this order's pattern, repeating what's in it -- press
+		 * it again to keep doubling (32 -> 64 -> ... -> 512). */
+		if (k->mod & SCHISM_KEYMOD_ALT) {
+			int pat, rows, cleared;
+
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+
+			pat = current_song->orderlist[current_order];
+			if (pat >= 200) {
+				status_text_flash("No pattern at order %d", current_order);
+				return 1;
+			}
+
+			rows = song_get_pattern(pat, NULL);
+			if (rows >= MAX_PATTERN_ROWS) {
+				status_text_flash("Pattern %d is already %d rows", pat, rows);
+				return 1;
+			}
+
+			cleared = pattern_grow_tiled(pat, rows * 2);
+			if (cleared < 0) {
+				status_text_flash("Could not extend pattern %d", pat);
+			} else if (cleared) {
+				status_text_flash("Pattern %d doubled to %d rows, %d break%s cleared",
+					pat, song_get_pattern(pat, NULL), cleared,
+					(cleared == 1) ? "" : "s");
+			} else {
+				status_text_flash("Pattern %d doubled to %d rows",
+					pat, song_get_pattern(pat, NULL));
+			}
+			status.flags |= NEED_UPDATE | SONG_NEEDS_SAVE;
+			return 1;
+		}
+		return 0;
+
 	case SCHISM_KEYSYM_m:
 		if (!NO_MODIFIER(k->mod))
 			return 0;

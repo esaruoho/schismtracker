@@ -33,5 +33,6 @@
 | Fork additions.
 :   Alt-D             Clone pattern to a free slot and insert it
 :   M                 Toggle clone mute-wipe (wipes muted chans)
+:   Alt-E             Double pattern length, repeating it
 :   Right             On 3rd digit: render pattern to a sample
 :   Shift-Right       Quicksave pattern to a .wav
