@@ -294,18 +294,61 @@ static void options_close_cancel(SCHISM_UNUSED void *data)
  * The rows are written unconditionally rather than only where they look blank:
  * a pattern that was previously shrunk still has its old contents sitting in
  * the allocation past pattern_size, and those would otherwise reappear. */
-static void pattern_tile_to_length(int pattern, int old_rows, int new_rows)
+/* Tiling copies the material verbatim, which means a pattern break sitting on
+ * the source's last row -- the usual "end of pattern" marker -- is copied to the
+ * end of every repeat, and playback stops dead at the first one. Clear those
+ * carried-over breaks, but leave the one on the grown pattern's final row alone
+ * so the pattern still ends the way it did before it was tiled.
+ *
+ * Only the rows a repeat lands on are touched, and only when the source really
+ * did end with a break, so breaks placed deliberately elsewhere are left as they
+ * are. Returns how many were cleared. */
+static int pattern_clear_carried_breaks(song_note_t *data, int old_rows, int new_rows)
+{
+	int chan, row, cleared = 0, ends_with_break = 0;
+
+	for (chan = 0; chan < MAX_CHANNELS; chan++) {
+		int fx = data[((old_rows - 1) * MAX_CHANNELS) + chan].effect;
+
+		if (fx == FX_PATTERNBREAK || fx == FX_POSITIONJUMP) {
+			ends_with_break = 1;
+			break;
+		}
+	}
+
+	if (!ends_with_break)
+		return 0;
+
+	/* every repeat boundary except the new final row */
+	for (row = old_rows - 1; row < new_rows - 1; row += old_rows) {
+		for (chan = 0; chan < MAX_CHANNELS; chan++) {
+			song_note_t *note = data + (row * MAX_CHANNELS) + chan;
+
+			if (note->effect != FX_PATTERNBREAK && note->effect != FX_POSITIONJUMP)
+				continue;
+
+			note->effect = 0;
+			note->param = 0;
+			cleared++;
+		}
+	}
+
+	return cleared;
+}
+
+/* returns the number of carried-over pattern breaks it had to clear */
+static int pattern_tile_to_length(int pattern, int old_rows, int new_rows)
 {
 	song_note_t *data;
-	int row;
+	int row, cleared;
 
 	if (old_rows <= 0 || new_rows <= old_rows)
-		return;
+		return 0;
 
 	/* must be read after the resize -- that reallocates the pattern */
 	data = current_song->patterns[pattern];
 	if (!data)
-		return;
+		return 0;
 
 	song_lock_audio();
 	for (row = old_rows; row < new_rows; row++) {
@@ -313,7 +356,11 @@ static void pattern_tile_to_length(int pattern, int old_rows, int new_rows)
 			data + ((row % old_rows) * MAX_CHANNELS),
 			MAX_CHANNELS * sizeof(song_note_t));
 	}
+
+	cleared = pattern_clear_carried_breaks(data, old_rows, new_rows);
 	song_unlock_audio();
+
+	return cleared;
 }
 
 static void options_close(void *data)
@@ -335,9 +382,15 @@ static void options_close(void *data)
 	if (old_size != new_size) {
 		song_pattern_resize(current_pattern, new_size);
 		if (new_size > old_size) {
-			pattern_tile_to_length(current_pattern, old_size, new_size);
-			status_text_flash("Pattern %d: %d rows tiled to %d",
-				current_pattern, old_size, new_size);
+			int cleared = pattern_tile_to_length(current_pattern, old_size, new_size);
+
+			if (cleared) {
+				status_text_flash("Pattern %d tiled to %d rows, %d break%s cleared",
+					current_pattern, new_size, cleared, (cleared == 1) ? "" : "s");
+			} else {
+				status_text_flash("Pattern %d: %d rows tiled to %d",
+					current_pattern, old_size, new_size);
+			}
 		}
 		current_row = MIN(current_row, new_size - 1);
 		pattern_editor_reposition();
