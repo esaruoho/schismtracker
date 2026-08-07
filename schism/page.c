@@ -422,6 +422,7 @@ static int rshift_tap_page(void)
 	switch (status.current_page) {
 	case PAGE_SAMPLE_LIST:
 	case PAGE_INFO:
+	case PAGE_PATTERN_EDITOR:
 		return 1;
 	default:
 		return page_is_instrument_list(status.current_page);
@@ -430,7 +431,18 @@ static int rshift_tap_page(void)
 
 static void rshift_tap_action(void)
 {
-	int pat = (song_get_mode() != MODE_STOPPED)
+	int pat;
+
+	/* Already in the editor: toggle following. Scroll Lock is otherwise the
+	 * only way to turn it off, and plenty of keyboards haven't got one. */
+	if (status.current_page == PAGE_PATTERN_EDITOR) {
+		midi_playback_tracing = (playback_tracing = !playback_tracing);
+		status_text_flash("Follow pattern %s",
+			playback_tracing ? "enabled" : "disabled");
+		return;
+	}
+
+	pat = (song_get_mode() != MODE_STOPPED)
 		? song_get_playing_pattern()
 		: get_current_pattern();
 
@@ -462,7 +474,10 @@ static int rshift_tap_check(struct key_event *k)
 			&& ACTIVE_PAGE_WIDGET.type != WIDGET_TEXTENTRY) {
 			rshift_held = 0;
 			rshift_tap_action();
-			return 1;
+			/* deliberately not consumed: the pattern editor ends shift
+			 * selections and chords on this release, and swallowing it would
+			 * strand that state */
+			return 0;
 		}
 
 		rshift_held = 0;

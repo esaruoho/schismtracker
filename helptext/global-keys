@@ -34,6 +34,7 @@
 :   Right Shift (tap) From sample/instrument list or info
 :                     page: go to the playing pattern with
 :                     follow mode on
+:                     In the pattern editor: toggle follow
 |
 |   { }               Decrease/Increase playback speed
 :   Ctrl-[ ]          Decrease/Increase playback tempo
