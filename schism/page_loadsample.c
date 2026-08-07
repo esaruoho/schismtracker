@@ -661,17 +661,19 @@ static void handle_shift_enter_key(void)
 	dmoz_cache_update(cfg_dir_samples, &flist, NULL);
 	dmoz_fill_ext_data(file);
 
-	/* Not sitting on a module: take the whole folder instead, which is the same
-	 * idea -- load everything in the list. */
-	if (!(file->type & TYPE_MODULE_MASK)) {
-		handle_shift_enter_load_list("this folder");
-		return;
-	}
+	/* Anything that opens as a library and isn't itself a sample is worth trying
+	 * as a module -- going by TYPE_MODULE_MASK alone depends on the type bits
+	 * having been filled in for this row already. If it turns out not to load,
+	 * fall back to taking the whole folder, which is the same idea. */
+	mod = ((file->type & TYPE_MODULE_MASK)
+			|| ((file->type & TYPE_BROWSABLE_MASK)
+				&& !(file->type & (TYPE_SAMPLE_MASK | TYPE_INST_MASK))
+				&& file->type != TYPE_DIRECTORY))
+		? song_create_load(file->path)
+		: NULL;
 
-	mod = song_create_load(file->path);
 	if (!mod) {
-		log_perror(file->path);
-		status_text_flash("Could not read %s", file->base);
+		handle_shift_enter_load_list("this folder");
 		return;
 	}
 
@@ -898,12 +900,19 @@ static int file_list_handle_key(struct key_event * k)
 		} /* else fall through */
 	case SCHISM_KEYSYM_RETURN:
 		if (search_pos < 0) {
+			/* Shift-Enter acts on the press and eats the key. Letting the press
+			 * fall through (as plain Enter does) meant the first one was handled
+			 * elsewhere -- opening the module as a library -- and only a later
+			 * press ever reached here, so it took two goes. */
+			if (k->mod & SCHISM_KEYMOD_SHIFT) {
+				if (k->state == KEY_PRESS && !k->is_repeat)
+					handle_shift_enter_key();
+				search_pos = -1;
+				return 1;
+			}
 			if (k->state == KEY_PRESS)
 				return 0;
-			if ((k->mod & SCHISM_KEYMOD_SHIFT) && !_library_mode)
-				handle_shift_enter_key();
-			else
-				handle_enter_key();
+			handle_enter_key();
 			search_pos = -1;
 		} else {
 			if (k->state == KEY_PRESS)
