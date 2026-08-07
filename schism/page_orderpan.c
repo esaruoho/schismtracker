@@ -786,19 +786,6 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		}
 		return 0;
 
-	case SCHISM_KEYSYM_b:
-		if (k->mod & SCHISM_KEYMOD_SHIFT)
-			return 0;
-		/* fall through */
-	case SCHISM_KEYSYM_o:
-		if (!(k->mod & SCHISM_KEYMOD_CTRL))
-			return 0;
-		if (k->state == KEY_RELEASE)
-			return 1;
-		song_pattern_to_sample(current_song->orderlist[current_order],
-				!!(k->mod & SCHISM_KEYMOD_SHIFT), !!(k->sym == SCHISM_KEYSYM_b));
-		return 1;
-
 	case SCHISM_KEYSYM_LESS:
 	case SCHISM_KEYSYM_SEMICOLON:
 	case SCHISM_KEYSYM_COLON:

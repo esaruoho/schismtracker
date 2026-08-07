@@ -4244,16 +4244,6 @@ static int pattern_editor_handle_ctrl_key(struct key_event * k)
 		status.flags |= NEED_UPDATE;
 		return 1;
 
-	case SCHISM_KEYSYM_b:
-		if (k->mod & SCHISM_KEYMOD_SHIFT)
-			return 0;
-		/* fall through */
-	case SCHISM_KEYSYM_o:
-		if (k->state == KEY_RELEASE)
-			return 1;
-		song_pattern_to_sample(current_pattern, !!(k->mod & SCHISM_KEYMOD_SHIFT), !!(k->sym == SCHISM_KEYSYM_b));
-		return 1;
-
 	case SCHISM_KEYSYM_v:
 		if (k->state == KEY_RELEASE)
 			return 1;

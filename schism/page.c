@@ -405,6 +405,71 @@ void handle_text_input(const char* text_input) {
 }
 
 /* --------------------------------------------------------------------------------------------------------- */
+/* Shift-F4: set up a multitimbral rig in one gesture -- an instrument per MIDI
+ * channel, each claiming its channel, with channel 10 built as a drum kit the
+ * way General MIDI expects. Existing instruments are left alone; only empty
+ * slots get built, so this can't clobber work. */
+
+static void multitimbral_build(SCHISM_UNUSED void *data)
+{
+	int n, built = 0;
+	song_instrument_t *kit;
+
+	for (n = 1; n <= 16; n++) {
+		song_instrument_t *ins;
+
+		song_init_instrument_from_sample(n, n);
+
+		ins = current_song->instruments[n];
+		if (!ins || csf_instrument_is_empty(ins))
+			continue;
+
+		/* claim the matching MIDI channel; this is the same per-instrument
+		 * setting the pitch page shows, so it saves with the song */
+		ins->midi_channel_mask = 1 << (n - 1);
+		built++;
+	}
+
+	/* channel 10 is the kit: lay every loaded sample across the keyboard so one
+	 * key fires one drum, rather than the single sample a melodic part uses */
+	kit = current_song->instruments[10];
+	if (kit && !csf_instrument_is_empty(kit)) {
+		int key = 0, smp;
+
+		for (smp = 1; smp < MAX_SAMPLES && key < 120; smp++) {
+			if (!current_song->samples[smp].data)
+				continue;
+			kit->sample_map[key] = smp;
+			kit->note_map[key] = key + 1;
+			key++;
+		}
+		/* anything above the last drum keeps playing the last one rather than
+		 * going silent on a stray note */
+		for (; key < 128 && key > 0; key++) {
+			kit->sample_map[key] = kit->sample_map[key - 1];
+			kit->note_map[key] = key + 1;
+		}
+	}
+
+	if (!built) {
+		status_text_flash("No samples to build multitimbral instruments from");
+		return;
+	}
+
+	song_set_instrument_mode(1);
+	midi_flags |= MIDI_MULTITIMBRAL;
+	set_page(PAGE_INSTRUMENT_LIST);
+	status.flags |= SONG_NEEDS_SAVE | NEED_UPDATE;
+	status_text_flash("%d parts on MIDI channels 1-16, ch 10 = kit", built);
+}
+
+static void multitimbral_setup(void)
+{
+	dialog_create(DIALOG_YES_NO, "Build multitimbral instruments (ch 10 = kit)?",
+		multitimbral_build, NULL, 0, NULL);
+}
+
+/* --------------------------------------------------------------------------------------------------------- */
 
 /* returns 1 if the key was handled */
 static int handle_key_global(struct key_event * k)
@@ -679,8 +744,11 @@ static int handle_key_global(struct key_event * k)
 			_mp_finish(NULL);
 			if (k->state == KEY_PRESS)
 				set_page(PAGE_INSTRUMENT_LIST);
+		} else if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			_mp_finish(NULL);
+			if (k->state == KEY_PRESS)
+				multitimbral_setup();
 		} else {
-			if (k->mod & SCHISM_KEYMOD_SHIFT) return 0;
 			_mp_finish(NULL);
 			if (k->mod & SCHISM_KEYMOD_CTRL) set_page(PAGE_LIBRARY_INSTRUMENT);
 			break;
@@ -797,6 +865,39 @@ static int handle_key_global(struct key_event * k)
 				set_page(PAGE_SAVE_MODULE);
 		} else {
 			break;
+		}
+		return 1;
+	case SCHISM_KEYSYM_b:
+		/* Shift-Ctrl-B isn't a thing; leave it alone */
+		if (k->mod & SCHISM_KEYMOD_SHIFT)
+			break;
+		SCHISM_FALLTHROUGH;
+	case SCHISM_KEYSYM_o:
+		/* Render a pattern into a sample from anywhere -- the sample and
+		 * instrument lists included, not just the pattern editor and the order
+		 * list where this used to be bound. Shift adds the per-channel split,
+		 * Ctrl-B binds the sample to the pattern. */
+		if (status.dialog_type != DIALOG_NONE)
+			return 0;
+		if (!(k->mod & SCHISM_KEYMOD_CTRL) || (k->mod & SCHISM_KEYMOD_ALT))
+			break;
+		_mp_finish(NULL);
+		/* on release, so holding the key can't queue up renders */
+		if (k->state == KEY_PRESS)
+			return 1;
+		{
+			int pat = (status.current_page == PAGE_ORDERLIST_PANNING
+					|| status.current_page == PAGE_ORDERLIST_VOLUMES)
+				? current_song->orderlist[get_current_order()]
+				: get_current_pattern();
+
+			if (pat >= 200) {
+				status_text_flash("No pattern at order %d", get_current_order());
+			} else {
+				song_pattern_to_sample(pat,
+					!!(k->mod & SCHISM_KEYMOD_SHIFT),
+					!!(k->sym == SCHISM_KEYSYM_b));
+			}
 		}
 		return 1;
 	case SCHISM_KEYSYM_F10:
