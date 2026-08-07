@@ -575,6 +575,72 @@ static void reposition_at_slash_search(void)
  *
  * The module is loaded into its own song and the samples deep-copied out of it
  * (song_copy_sample allocates), so freeing it afterwards is safe. */
+/* Load every sample in the list currently on screen -- the samples of a module we
+ * are zoomed into, or every sample file in the folder being browsed. Entries that
+ * have already been read carry their sample with them; the rest are loaded from
+ * their path. */
+static void handle_shift_enter_load_list(const char *what)
+{
+	song_sample_t *smp;
+	int n, cur, loaded = 0, skipped = 0;
+
+	cur = sample_get_current();
+
+	for (n = 0; n < flist.num_files; n++) {
+		dmoz_file_t *f = flist.files[n];
+
+		if (!f)
+			continue;
+
+		dmoz_fill_ext_data(f);
+
+		if (cur >= MAX_SAMPLES) {
+			skipped++;
+			continue;
+		}
+
+		if (f->sample) {
+			void *ptr;
+
+			song_copy_sample(cur, f->sample);
+			smp = song_get_sample(cur);
+			strncpy(smp->name, f->title ? f->title : "", ARRAY_SIZE(smp->name) - 1);
+			smp->name[ARRAY_SIZE(smp->name) - 1] = '\0';
+			ptr = f->base
+				? charset_iconv_easy(f->base, CHARSET_CHAR, CHARSET_CP437)
+				: NULL;
+			if (ptr) {
+				strncpy(smp->filename, ptr, ARRAY_SIZE(smp->filename) - 1);
+				free(ptr);
+			}
+			smp->filename[ARRAY_SIZE(smp->filename) - 1] = '\0';
+		} else if ((f->type & TYPE_SAMPLE_MASK) && f->path) {
+			if (!song_load_sample(cur, f->path))
+				continue;
+		} else {
+			continue; /* a directory, a module, something we can't use */
+		}
+
+		finish_load(cur);
+		loaded++;
+		cur++;
+	}
+
+	memused_songchanged();
+
+	if (!loaded) {
+		status_text_flash("No samples in %s", what);
+		return;
+	}
+
+	status.flags |= SONG_NEEDS_SAVE;
+	if (skipped)
+		status_text_flash("Loaded %d samples (%d didn't fit)", loaded, skipped);
+	else
+		status_text_flash("Loaded %d samples from %s", loaded, what);
+	set_page(PAGE_SAMPLE_LIST);
+}
+
 static void handle_shift_enter_key(void)
 {
 	dmoz_file_t *file;
@@ -585,12 +651,20 @@ static void handle_shift_enter_key(void)
 	if (current_file < 0 || current_file >= flist.num_files)
 		return;
 
+	/* Zoomed into a module: its samples are the list in front of us. */
+	if (_library_mode) {
+		handle_shift_enter_load_list("this library");
+		return;
+	}
+
 	file = flist.files[current_file];
 	dmoz_cache_update(cfg_dir_samples, &flist, NULL);
 	dmoz_fill_ext_data(file);
 
+	/* Not sitting on a module: take the whole folder instead, which is the same
+	 * idea -- load everything in the list. */
 	if (!(file->type & TYPE_MODULE_MASK)) {
-		status_text_flash("Not a module -- Shift-Enter loads a module's samples");
+		handle_shift_enter_load_list("this folder");
 		return;
 	}
 
