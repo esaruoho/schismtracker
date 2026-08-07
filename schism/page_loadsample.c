@@ -638,7 +638,9 @@ static void handle_shift_enter_load_list(const char *what)
 		status_text_flash("Loaded %d samples (%d didn't fit)", loaded, skipped);
 	else
 		status_text_flash("Loaded %d samples from %s", loaded, what);
-	set_page(PAGE_SAMPLE_LIST);
+	/* stay put: bulk loading is something you do repeatedly while browsing, and
+	 * being thrown onto the sample list after each one just means walking back */
+	status.flags |= NEED_UPDATE;
 }
 
 static void handle_shift_enter_key(void)
@@ -712,7 +714,8 @@ static void handle_shift_enter_key(void)
 		status_text_flash("Loaded %d samples (%d didn't fit)", loaded, skipped);
 	else
 		status_text_flash("Loaded %d samples from %s", loaded, file->base);
-	set_page(PAGE_SAMPLE_LIST);
+	/* stay in the browser -- see above */
+	status.flags |= NEED_UPDATE;
 }
 
 /* on the file list, that is */
@@ -899,17 +902,17 @@ static int file_list_handle_key(struct key_event * k)
 			return 1;
 		} /* else fall through */
 	case SCHISM_KEYSYM_RETURN:
+		/* Shift-Enter is handled ahead of the search check, and on the press.
+		 * Inside it, a pending type-to-find search swallowed the first press to
+		 * cancel the search, and falling through on press let the module be
+		 * opened as a library instead -- either way it took two goes. */
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			if (k->state == KEY_PRESS && !k->is_repeat)
+				handle_shift_enter_key();
+			search_pos = -1;
+			return 1;
+		}
 		if (search_pos < 0) {
-			/* Shift-Enter acts on the press and eats the key. Letting the press
-			 * fall through (as plain Enter does) meant the first one was handled
-			 * elsewhere -- opening the module as a library -- and only a later
-			 * press ever reached here, so it took two goes. */
-			if (k->mod & SCHISM_KEYMOD_SHIFT) {
-				if (k->state == KEY_PRESS && !k->is_repeat)
-					handle_shift_enter_key();
-				search_pos = -1;
-				return 1;
-			}
 			if (k->state == KEY_PRESS)
 				return 0;
 			handle_enter_key();
