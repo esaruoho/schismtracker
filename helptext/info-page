@@ -22,6 +22,7 @@
 |
 | G                 Goto pattern currently playing
 | Fork additions.
-:   Enter             Go to the pattern being played
+:   Enter             Go to the playing pattern, on this
+:                     channel, at the row being played
 :   Shift-Right       Quicksave that pattern to a .wav
 :   Ctrl-Shift-Right  Dump all song samples as .wavs

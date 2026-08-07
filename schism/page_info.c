@@ -1257,6 +1257,13 @@ static int info_page_handle_key(struct key_event * k)
 		n = info_target_pattern();
 		if (n >= 0 && n < 200) {
 			set_current_pattern(n);
+			/* Land on the channel highlighted here, at the row playback has
+			 * reached, so you drop into the editor exactly where you were
+			 * listening rather than at the top of the pattern. Row is set after
+			 * the pattern, since changing pattern clamps the row. */
+			set_current_channel(selected_channel);
+			if (song_get_mode() != MODE_STOPPED)
+				set_current_row(song_get_current_row());
 			set_page(PAGE_PATTERN_EDITOR);
 		}
 		return 1;
