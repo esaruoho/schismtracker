@@ -170,6 +170,29 @@ void song_restore_channel_states(void)
 		song_set_channel_mute(n, channel_states[n]);
 }
 
+/* Invert every channel's mute state: what was muted plays, what was playing goes
+ * quiet. Reads each channel's own flag rather than the playing voice's, so the
+ * operation is exactly reversible -- doing it twice returns to where you started.
+ * Returns how many channels ended up muted. */
+int song_flip_channel_mutes(void)
+{
+	int n, muted = 0;
+
+	song_lock_audio();
+
+	for (n = 0; n < MAX_CHANNELS; n++) {
+		int was_muted = (current_song->channels[n].flags & CHN_MUTE) != 0;
+
+		song_set_channel_mute(n, !was_muted);
+		if (!was_muted)
+			muted++;
+	}
+
+	song_unlock_audio();
+
+	return muted;
+}
+
 void song_toggle_channel_mute(int channel)
 {
 	// i'm just going by the playing channel's state...

@@ -30,6 +30,7 @@
 :   Ctrl-O            Render current pattern to a sample
 :   Shift-Ctrl-O      Render pattern to one sample per channel
 :   Ctrl-B            Render pattern to a sample, bound to it
+:   Ctrl-Shift-F9     Flip all channel mutes
 |
 |   { }               Decrease/Increase playback speed
 :   Ctrl-[ ]          Decrease/Increase playback tempo

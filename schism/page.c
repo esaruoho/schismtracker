@@ -820,6 +820,19 @@ static int handle_key_global(struct key_event * k)
 	case SCHISM_KEYSYM_F9:
 		if (status.dialog_type != DIALOG_NONE)
 			return 0;
+		/* Ctrl-Shift-F9 flips every channel's mute -- next door to Ctrl-F9,
+		 * which toggles one. Checked before the plain-Shift branch below, or
+		 * this would open the message editor instead. */
+		if ((k->mod & SCHISM_KEYMOD_CTRL) && (k->mod & SCHISM_KEYMOD_SHIFT)) {
+			_mp_finish(NULL);
+			if (k->state == KEY_PRESS) {
+				int muted = song_flip_channel_mutes();
+
+				status_text_flash("Mutes flipped -- %d channel%s muted",
+					muted, (muted == 1) ? "" : "s");
+			}
+			return 1;
+		}
 		if (k->mod & SCHISM_KEYMOD_SHIFT) {
 			_mp_finish(NULL);
 			if (k->state == KEY_PRESS)

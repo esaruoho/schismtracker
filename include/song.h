@@ -189,6 +189,8 @@ song_channel_t *song_get_channel(int n);
 // this one should probably be organized somewhere else..... meh
 void song_set_channel_mute(int channel, int muted);
 void song_toggle_channel_mute(int channel);
+// invert every channel's mute state; returns how many ended up muted
+int song_flip_channel_mutes(void);
 // if channel is the current soloed channel, undo the solo (reset the
 // channel state); otherwise, save the state and solo the channel.
 void song_handle_channel_solo(int channel);
