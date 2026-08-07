@@ -769,6 +769,33 @@ static int file_list_handle_key(struct key_event * k)
 		return 1;
 	}
 
+	/* The quicksave gestures, so they still work while browsing here -- and
+	 * while zoomed into a module as a library, which is exactly where you want
+	 * to grab a pattern without first navigating back out.
+	 *
+	 * They write to cfg_dir_samples, which only ever tracks real directories --
+	 * entering a module leaves it on the folder that module lives in -- so the
+	 * files land in the folder you were browsing, not inside the module path. */
+	if (k->sym == SCHISM_KEYSYM_RIGHT && (k->mod & SCHISM_KEYMOD_SHIFT)
+		&& !(k->mod & SCHISM_KEYMOD_ALT)) {
+		if (k->state == KEY_RELEASE || k->is_repeat)
+			return 1;
+
+		if (k->mod & SCHISM_KEYMOD_CTRL) {
+			song_samples_to_quicksave_files();
+		} else {
+			int pat = (song_get_mode() != MODE_STOPPED)
+				? song_get_playing_pattern()
+				: get_current_pattern();
+
+			if (pat < 0 || pat >= 200)
+				status_text_flash("Nothing playing to quicksave");
+			else
+				song_pattern_to_quicksave_file(pat);
+		}
+		return 1;
+	}
+
 	if (k->mouse) {
 		if (k->x >= 6 && k->x <= 49 && k->y >= 13 && k->y <= 47) {
 			search_pos = -1;

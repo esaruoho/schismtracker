@@ -1484,8 +1484,13 @@ int schism_main(int argc, char **argv)
 	if (!initial_song && cfg_last_song[0]) {
 		struct stat st;
 
-		if (os_stat(cfg_last_song, &st) == 0 && S_ISREG(st.st_mode))
+		if (os_stat(cfg_last_song, &st) == 0 && S_ISREG(st.st_mode)) {
 			initial_song = str_dup(cfg_last_song);
+			/* picking up where we left off includes being underway: start
+			 * playing, which also lands on the info page */
+			if (initial_song)
+				BITARRAY_SET(startup_flags, SF_PLAY);
+		}
 	}
 
 	if (initial_song && !initial_dir) {
