@@ -4096,26 +4096,27 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 		recalculate_visible_area();
 		pattern_editor_reposition();
 		break;
+	/* Alt-Up/Alt-Down page the cursor, the same as Page Up/Page Down. Useful on
+	 * keyboards that have no page keys, or where they are a chord away. */
 	case SCHISM_KEYSYM_UP:
 		if (k->state == KEY_RELEASE)
 			return 1;
-		if (top_display_row > 0) {
-			top_display_row--;
-			if (current_row > top_display_row + 31)
-				current_row = top_display_row + 31;
-			return -1;
+		{
+			int rh = current_song->row_highlight_major
+				? current_song->row_highlight_major : 16;
+
+			if (current_row == max_row_number)
+				current_row -= (current_row % rh) ? (current_row % rh) : rh;
+			else
+				current_row -= rh;
 		}
-		return 1;
+		return -1;
 	case SCHISM_KEYSYM_DOWN:
 		if (k->state == KEY_RELEASE)
 			return 1;
-		if (top_display_row + 31 < max_row_number) {
-			top_display_row++;
-			if (current_row < top_display_row)
-				current_row = top_display_row;
-			return -1;
-		}
-		return 1;
+		current_row += current_song->row_highlight_major
+			? current_song->row_highlight_major : 16;
+		return -1;
 	case SCHISM_KEYSYM_LEFT:
 		if (k->state == KEY_RELEASE)
 			return 1;
