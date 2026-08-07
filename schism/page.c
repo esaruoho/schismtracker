@@ -405,6 +405,78 @@ void handle_text_input(const char* text_input) {
 }
 
 /* --------------------------------------------------------------------------------------------------------- */
+/* Right-shift tapped on its own -- pressed and released without being used to
+ * modify another key -- drops you into the pattern editor on whatever is
+ * playing, with follow mode on and the sample you had selected ready to type.
+ * One key from the sample list, the instrument list or the info page to
+ * "put me in the music".
+ *
+ * Held and used as a modifier it does nothing at all, so Shift-Right and every
+ * other shifted chord still behave normally. */
+
+static int rshift_held = 0;
+static int rshift_modified = 0;
+
+static int rshift_tap_page(void)
+{
+	switch (status.current_page) {
+	case PAGE_SAMPLE_LIST:
+	case PAGE_INFO:
+		return 1;
+	default:
+		return page_is_instrument_list(status.current_page);
+	}
+}
+
+static void rshift_tap_action(void)
+{
+	int pat = (song_get_mode() != MODE_STOPPED)
+		? song_get_playing_pattern()
+		: get_current_pattern();
+
+	if (pat >= 0 && pat < 200)
+		set_current_pattern(pat);
+
+	/* follow mode on, so the cursor rides along with playback */
+	midi_playback_tracing = playback_tracing = 1;
+
+	set_page(PAGE_PATTERN_EDITOR);
+	status_text_flash("Following pattern %d", pat);
+}
+
+/* returns 1 when the tap was acted on and the key should go no further */
+static int rshift_tap_check(struct key_event *k)
+{
+	if (k->sym == SCHISM_KEYSYM_RSHIFT) {
+		if (k->state == KEY_PRESS) {
+			if (!k->is_repeat) {
+				rshift_held = 1;
+				rshift_modified = 0;
+			}
+			return 0;
+		}
+
+		if (rshift_held && !rshift_modified
+			&& status.dialog_type == DIALOG_NONE
+			&& rshift_tap_page()
+			&& ACTIVE_PAGE_WIDGET.type != WIDGET_TEXTENTRY) {
+			rshift_held = 0;
+			rshift_tap_action();
+			return 1;
+		}
+
+		rshift_held = 0;
+		return 0;
+	}
+
+	/* anything else arriving while it is down means it was a modifier */
+	if (rshift_held && k->state == KEY_PRESS)
+		rshift_modified = 1;
+
+	return 0;
+}
+
+/* --------------------------------------------------------------------------------------------------------- */
 /* Shift-F4: set up a multitimbral rig in one gesture -- an instrument per MIDI
  * channel, each claiming its channel, with channel 10 built as a drum kit the
  * way General MIDI expects. Existing instruments are left alone; only empty
@@ -1211,6 +1283,9 @@ static int _handle_ime(struct key_event *k)
 void handle_key(struct key_event *k)
 {
 	if (_handle_ime(k))
+		return;
+
+	if (rshift_tap_check(k))
 		return;
 
 	/* okay... */

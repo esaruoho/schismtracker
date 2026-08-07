@@ -31,6 +31,9 @@
 :   Shift-Ctrl-O      Render pattern to one sample per channel
 :   Ctrl-B            Render pattern to a sample, bound to it
 :   Ctrl-Shift-F9     Flip all channel mutes
+:   Right Shift (tap) From sample/instrument list or info
+:                     page: go to the playing pattern with
+:                     follow mode on
 |
 |   { }               Decrease/Increase playback speed
 :   Ctrl-[ ]          Decrease/Increase playback tempo
