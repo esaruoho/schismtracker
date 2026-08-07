@@ -143,6 +143,9 @@ int song_export_pattern(const char *file, const char *type, int pattern);
 /* 'num' is only for status text feedback -- all of the sample's data is taken from 'smp'.
 this provides an eventual mechanism for saving samples modified from disk (not yet implemented) */
 int song_save_sample(const char *file, const char *type, song_sample_t *smp, int num);
+/* dump every loaded sample to <prefix>-smpNNN[-name].<ext>;
+returns the count written, or -1 on failure */
+int song_export_all_samples(const char *prefix, const char *type);
 
 void song_clear_sample(int n);
 void song_copy_sample(int n, song_sample_t *src);

@@ -129,6 +129,8 @@ static char *initial_dir = NULL;
 static char *diskwrite_to = NULL;
 /* --pattern: a pattern number, or "all"; dumps patterns instead of the song */
 static char *diskwrite_pattern = NULL;
+/* --samples: dump the song's samples instead of rendering audio */
+static int diskwrite_samples = 0;
 
 /* startup flags */
 enum {
@@ -171,6 +173,7 @@ enum {
 #endif
 	O_DISKWRITE,
 	O_PATTERN,
+	O_SAMPLES,
 	O_DEBUG,
 	O_VERSION,
 	O_HEADLESS,
@@ -198,6 +201,7 @@ static void parse_options(int argc, char **argv)
 		{"no-play", 0, NULL, O_NO_PLAY},
 		{"diskwrite", 1, NULL, O_DISKWRITE},
 		{"pattern", 1, NULL, O_PATTERN},
+		{"samples", 0, NULL, O_SAMPLES},
 		{"font-editor", 0, NULL, O_FONTEDIT},
 		{"no-font-editor", 0, NULL, O_NO_FONTEDIT},
 #if ENABLE_HOOKS
@@ -275,6 +279,9 @@ static void parse_options(int argc, char **argv)
 		case O_PATTERN:
 			diskwrite_pattern = optarg;
 			break;
+		case O_SAMPLES:
+			diskwrite_samples = 1;
+			break;
 #if ENABLE_HOOKS
 		case O_HOOKS:
 			BITARRAY_SET(startup_flags, SF_HOOKS);
@@ -301,6 +308,7 @@ static void parse_options(int argc, char **argv)
 				"  -p, --play (-P, --no-play)\n"
 				"      --diskwrite=FILENAME\n"
 				"      --pattern=N|all (with --diskwrite: dump patterns, not the song)\n"
+				"      --samples (with --diskwrite: dump the song's samples as wavs)\n"
 				"      --font-editor (--no-font-editor)\n"
 #if ENABLE_HOOKS
 				"      --hooks (--no-hooks)\n"
@@ -1313,6 +1321,36 @@ int schism_main(int argc, char **argv)
 			const char *driver = (strcasestr(diskwrite_to, ".aif")
 					  ? (multi ? "MAIFF" : "AIFF")
 					  : (multi ? "MWAV" : "WAV"));
+
+			/* --samples dumps the sample set rather than rendering anything. */
+			if (diskwrite_samples) {
+				char prefix[SCHISM_PATH_MAX];
+				char *ext;
+				int nw;
+
+				strncpy(prefix, diskwrite_to, sizeof(prefix) - 1);
+				prefix[sizeof(prefix) - 1] = '\0';
+
+				/* treat the argument as a name prefix: drop a trailing audio
+				 * extension so we don't produce "out.wav-smp001.wav" */
+				ext = strrchr(prefix, '.');
+				if (ext && (!strcasecmp(ext, ".wav") || !strcasecmp(ext, ".aiff")
+						|| !strcasecmp(ext, ".aif")))
+					*ext = '\0';
+
+				nw = song_export_all_samples(prefix, "WAV");
+				if (nw < 0) {
+					fprintf(stderr, "Error: could not write samples\n");
+					schism_exit(1);
+				}
+				if (!nw) {
+					fprintf(stderr, "Error: %s has no samples\n", initial_song);
+					schism_exit(1);
+				}
+
+				printf("%d samples written as %s-smpNNN.wav\n", nw, prefix);
+				schism_exit(0);
+			}
 
 			/* --pattern dumps pattern audio instead of the whole song. These
 			 * renders are synchronous, so they need no disko_sync pumping. */

@@ -589,6 +589,16 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		 * the last digit would render immediately, one keystroke too early. And
 		 * not on auto-repeat, so holding the key can't queue up renders. */
 
+		/* Ctrl-Shift-Right dumps the song's samples to that same directory --
+		 * the sample counterpart of the pattern quicksave below. */
+		if ((k->mod & SCHISM_KEYMOD_SHIFT) && (k->mod & SCHISM_KEYMOD_CTRL)
+			&& !(k->mod & SCHISM_KEYMOD_ALT)) {
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+			song_samples_to_quicksave_files();
+			return 1;
+		}
+
 		/* Shift-Right quicksaves this order's pattern to a .wav next to
 		 * wherever the sample loader was last browsing -- from any column of
 		 * the pattern cell, since it never moves the cursor anyway. */

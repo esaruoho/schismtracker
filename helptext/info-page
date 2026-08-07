@@ -24,3 +24,4 @@
 | Fork additions.
 :   Enter             Go to the pattern being played
 :   Shift-Right       Quicksave that pattern to a .wav
+:   Ctrl-Shift-Right  Dump all song samples as .wavs

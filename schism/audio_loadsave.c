@@ -594,6 +594,62 @@ such as "abc|def.it". This dialog is presented both when saving from F10 and Ctr
 	return ret;
 }
 
+/* Write every non-empty sample to its own file, named
+ * <prefix>-smpNNN[-name].<ext>. The slot number leads so nothing can collide and
+ * the order is obvious; the sample's own name is appended when it has a usable
+ * one, so the dump is browsable afterwards.
+ *
+ * Returns how many were written, or -1 if one of them failed. */
+int song_export_all_samples(const char *prefix, const char *type)
+{
+	const struct save_format *format = get_save_format(sample_save_formats, type);
+	int n, written = 0;
+
+	if (!format || !prefix)
+		return -1;
+
+	for (n = 1; n < MAX_SAMPLES; n++) {
+		song_sample_t *smp = current_song->samples + n;
+		char name[32];
+		char *path;
+		int i, j = 0, r;
+
+		if (!smp->data || !smp->length)
+			continue;
+
+		for (i = 0; i < (int)sizeof(smp->name) && smp->name[i]
+				&& j < (int)sizeof(name) - 1; i++) {
+			unsigned char c = (unsigned char)smp->name[i];
+
+			if (isalnum(c) || c == '-')
+				name[j++] = c;
+			else if (j && name[j - 1] != '_')
+				/* one underscore for any run of padding or punctuation --
+				 * IT pads sample names with spaces, so without this the
+				 * filenames come out full of long underscore runs */
+				name[j++] = '_';
+		}
+		while (j && name[j - 1] == '_')
+			j--;
+		name[j] = '\0';
+
+		r = j ? asprintf(&path, "%s-smp%03d-%s%s", prefix, n, name, format->ext)
+		      : asprintf(&path, "%s-smp%03d%s", prefix, n, format->ext);
+		if (r < 0)
+			return -1;
+
+		r = song_save_sample(path, type, smp, n);
+		free(path);
+
+		if (r != SAVE_SUCCESS)
+			return -1;
+
+		written++;
+	}
+
+	return written;
+}
+
 int song_save_sample(const char *filename, const char *type, song_sample_t *smp, int num)
 {
 	static const char *err = "Error: Sample %d NOT saved! (%s)";

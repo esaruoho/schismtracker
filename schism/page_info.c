@@ -1217,6 +1217,15 @@ static int info_page_handle_key(struct key_event * k)
 			selected_channel++;
 		break;
 	case SCHISM_KEYSYM_RIGHT:
+		/* Ctrl-Shift-Right dumps the song's samples, as on the order list. */
+		if ((k->mod & SCHISM_KEYMOD_SHIFT) && (k->mod & SCHISM_KEYMOD_CTRL)
+			&& !(k->mod & SCHISM_KEYMOD_ALT)) {
+			if (k->state == KEY_RELEASE || k->is_repeat)
+				return 1;
+			song_samples_to_quicksave_files();
+			return 1;
+		}
+
 		/* Shift-Right quicksaves the pattern being heard, the same gesture as on
 		 * the order list -- this page is where you watch playback, so it is the
 		 * obvious place to reach for it. */

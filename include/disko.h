@@ -124,6 +124,9 @@ int disko_writeout_pattern_file(const char *filename, const struct save_format *
 into whatever directory the sample loader was last browsing */
 void song_pattern_to_quicksave_file(int pattern);
 
+/* Dump every loaded sample into that same directory, one .wav each */
+void song_samples_to_quicksave_files(void);
+
 /* call periodically if (status.flags & DISKWRITER_ACTIVE) to write more stuff.
 return: DW_SYNC_*, self explanatory */
 int disko_sync(void);

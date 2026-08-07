@@ -1101,6 +1101,52 @@ static int disko_finish(void)
 }
 
 // ---------------------------------------------------------------------------
+
+/* The sample counterpart to quicksaving a pattern: drop every loaded sample into
+ * the directory the sample loader is pointing at, as its own .wav. */
+void song_samples_to_quicksave_files(void)
+{
+	struct stat st;
+	const char *base;
+	char stem[64], *dot, *prefix;
+	int n;
+
+	if (os_stat(cfg_dir_samples, &st) == -1) {
+		status_text_flash("Sample directory \"%s\" unreachable", cfg_dir_samples);
+		return;
+	}
+
+	base = song_get_basename();
+	if (!base || !*base)
+		base = "untitled";
+	strncpy(stem, base, sizeof(stem) - 1);
+	stem[sizeof(stem) - 1] = '\0';
+	dot = strrchr(stem, '.');
+	if (dot && dot != stem)
+		*dot = '\0';
+
+	prefix = dmoz_path_concat(cfg_dir_samples, stem);
+	if (!prefix) {
+		status_text_flash("Sample dump: out of memory");
+		return;
+	}
+
+	n = song_export_all_samples(prefix, "WAV");
+	free(prefix);
+
+	if (n < 0) {
+		log_perror("Sample dump");
+		status_text_flash("Sample dump failed");
+	} else if (!n) {
+		status_text_flash("No samples to dump");
+	} else {
+		status_text_flash("%d sample%s dumped to %s", n, (n == 1) ? "" : "s",
+			cfg_dir_samples);
+		log_appendf(2, "Dumped %d samples to %s", n, cfg_dir_samples);
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Quicksave: render one pattern straight to an audio file.
 //
 // This deliberately does NOT go through the asynchronous disko_sync machinery
