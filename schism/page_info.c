@@ -1264,6 +1264,10 @@ static int info_page_handle_key(struct key_event * k)
 			set_current_channel(selected_channel);
 			if (song_get_mode() != MODE_STOPPED)
 				set_current_row(song_get_current_row());
+			/* Land and freeze: follow mode would drag the cursor off the row we
+			 * just picked, and the point of arriving here is to edit that spot.
+			 * (Tapping right shift is the opposite gesture -- ride along.) */
+			midi_playback_tracing = playback_tracing = 0;
 			set_page(PAGE_PATTERN_EDITOR);
 		}
 		return 1;

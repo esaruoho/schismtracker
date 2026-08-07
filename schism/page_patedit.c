@@ -148,7 +148,10 @@ enum {
     COPY_INST_UP_THEN_DOWN = 2, /* search both ways, up to row 0 first, then down */
     COPY_INST_SENTINEL = 3, /* non-value */
 };
-static int mask_copy_search_mode = COPY_INST_OFF;
+/* Enter in the pattern editor lifts the instrument/sample number for the cursor's
+ * note. Searching means it finds the nearest one above (then below) rather than
+ * only picking up a number that happens to sit on the cursor's own row. */
+static int mask_copy_search_mode = COPY_INST_UP_THEN_DOWN;
 
 /* If nonzero, home/end will move to the first/last row in the current channel
 prior to moving to the first/last channel, i.e. operating in a 'z' pattern.
@@ -1354,7 +1357,7 @@ void cfg_load_patedit(cfg_file_t *cfg)
 	CFG_GET_PE(keyjazz_write_noteoff, 0);
 	CFG_GET_PE(keyjazz_repeat, 1);
 	CFG_GET_PE(keyjazz_capslock, 0);
-	CFG_GET_PE(mask_copy_search_mode, 0);
+	CFG_GET_PE(mask_copy_search_mode, COPY_INST_UP_THEN_DOWN);
 	CFG_GET_PE(invert_home_end, 0);
 	cfg_pattern_default_rows = CLAMP(cfg_get_number(cfg, "Pattern Editor",
 		"default_pattern_rows", 64), MIN_PATTERN_ROWS, MAX_PATTERN_ROWS);

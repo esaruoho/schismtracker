@@ -24,5 +24,6 @@
 | Fork additions.
 :   Enter             Go to the playing pattern, on this
 :                     channel, at the row being played
+:                     (follow mode off, so it stays put)
 :   Shift-Right       Quicksave that pattern to a .wav
 :   Ctrl-Shift-Right  Dump all song samples as .wavs
