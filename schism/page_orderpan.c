@@ -840,6 +840,20 @@ static int orderlist_handle_key_on_list(struct key_event * k)
 		}
 		return 0;
 
+	case SCHISM_KEYSYM_m:
+		/* Plain M also clones with the muted channels wiped. Impulse Tracker has
+		 * had an M here for years and the muscle memory is real, so it stays --
+		 * but as a THIRD DIRECT BINDING, not as the mode it used to be. A key that
+		 * silently changes what Alt-D does next is worse than a key that just does
+		 * the thing, which is why the mode was retired in 25ca6296; bringing the
+		 * mode back would put Alt-D's meaning behind state you have to remember. */
+		if (!NO_MODIFIER(k->mod))
+			return 0;
+		if (k->state == KEY_RELEASE || k->is_repeat)
+			return 1;
+		orderlist_clone_pattern(1);
+		return 1;
+
 	case SCHISM_KEYSYM_r:
 		if (k->mod & SCHISM_KEYMOD_ALT) {
 			if (k->state == KEY_PRESS)
