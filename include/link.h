@@ -66,7 +66,14 @@ void link_set_playing(int playing);
  * link_audio_end() hands the rendered buffer to Link Audio, if we are publishing.
  * They must be called in that order, once each per callback. */
 void link_audio_begin(uint32_t frames, uint32_t sample_rate);
+/* `bits` is the REAL output width (8/16/24/32/64) and `is_float` says whether those
+ * are floats -- the sink takes interleaved int16, so anything else is converted. */
 void link_audio_end(const void *buffer, uint32_t frames, uint32_t channels,
-	uint32_t bits, uint32_t sample_rate);
+	uint32_t bits, int is_float, uint32_t sample_rate);
+
+/* Link Audio publication counters, for the status line: how many buffers we have
+ * committed, and for each way it can fail, how often. */
+void link_audio_stats(unsigned long *commits, unsigned long *no_buffer,
+	unsigned long *too_small, unsigned long *bad_format);
 
 #endif /* SCHISM_LINK_H_ */

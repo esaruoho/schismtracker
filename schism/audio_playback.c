@@ -266,8 +266,8 @@ static void audio_callback(uint8_t *stream, uint32_t len)
 	 * interleaved, and n is frames (audio_sample_size is bytes per frame). Inert
 	 * unless Link Audio is switched on.
 	 * FEATURE-CARD >> features/ableton-link.feature */
-	link_audio_end(stream, n, audio_output_channels, audio_output_bits,
-		current_song->mix_frequency);
+	link_audio_end(stream, n, audio_output_channels, audio_output_bits_real,
+		audio_output_fp, current_song->mix_frequency);
 
 	/* convert 8-bit unsigned to signed by XORing the high bit */
 	if (audio_output_bits == 8)
@@ -451,6 +451,14 @@ static void main_song_mode_changed_cb(void)
 		if (pages[n].song_mode_changed_cb)
 			pages[n].song_mode_changed_cb();
 	}
+
+	/* Tell the Link session we started or stopped. Every app-thread transport change
+	 * comes through here -- start, start_once, pause, stop, loop_pattern,
+	 * start_at_order, start_at_pattern -- so this is the one place that needs it, and
+	 * it is NOT reached from song_stop_unlocked() in the audio callback, which is
+	 * exactly right: announcing is not realtime-safe.
+	 * FEATURE-CARD >> features/ableton-link.feature */
+	link_set_playing((song_get_mode() & (MODE_PLAYING | MODE_PATTERN_LOOP)) ? 1 : 0);
 }
 
 

@@ -41,8 +41,11 @@ void link_set_playing(int playing) { (void)playing; }
 void link_audio_begin(uint32_t frames, uint32_t sample_rate)
 	{ (void)frames; (void)sample_rate; }
 void link_audio_end(const void *buffer, uint32_t frames, uint32_t channels,
-	uint32_t bits, uint32_t sample_rate)
-	{ (void)buffer; (void)frames; (void)channels; (void)bits; (void)sample_rate; }
+	uint32_t bits, int is_float, uint32_t sample_rate)
+	{ (void)buffer; (void)frames; (void)channels; (void)bits; (void)is_float;
+	  (void)sample_rate; }
+void link_audio_stats(unsigned long *a, unsigned long *b, unsigned long *c,
+	unsigned long *d) { if (a) *a = 0; if (b) *b = 0; if (c) *c = 0; if (d) *d = 0; }
 
 #else /* USE_LINK */
 
@@ -81,6 +84,22 @@ static abl_link_session_state g_state_app = { NULL };    /* app thread only */
 static double g_beat_at_buffer = 0.0;
 static int g_state_valid = 0;
 
+/* Conversion scratch for output formats that are not already int16. Static so the
+ * audio callback never allocates; 64K samples is far more than any buffer schism
+ * hands us, and a bigger one is skipped rather than overrunning this. */
+#define LINK_CONV_SAMPLES 65536
+static int16_t g_conv[LINK_CONV_SAMPLES];
+/* Last size we asked the sink for, so we only ask when it changes. */
+static size_t g_conv_requested = 0;
+
+/* Publication counters, for the status line. "The channel is listed but records
+ * silence" is otherwise unanswerable: these say whether we are committing audio at
+ * all, and if not, which step is refusing. */
+static volatile unsigned long g_commits = 0;   /* buffers handed to the sink */
+static volatile unsigned long g_norefuse = 0;  /* retain_buffer gave us nothing */
+static volatile unsigned long g_toosmall = 0;  /* buffer smaller than our frame */
+static volatile unsigned long g_badfmt = 0;    /* output format we cannot convert */
+
 int link_available(void)
 {
 	return 1;
@@ -101,6 +120,7 @@ static void link_sink_down(void)
 		abl_link_audio_sink_destroy(g_sink);
 		g_sink.impl = NULL;
 		g_sink_up = 0;
+		g_conv_requested = 0;
 	}
 }
 
@@ -321,40 +341,129 @@ void link_audio_begin(uint32_t frames, uint32_t sample_rate)
 	(void)frames;
 }
 
+/* Convert `count` interleaved samples of schism's output into int16 in `dst`.
+ * Returns 0 if the format is not one we know how to read.
+ *
+ * The sink takes int16, and schism can be set to 8, 16, 24 or 32 bit, integer or
+ * float. Publishing only at 16 bit was a silent trap: the channel appeared on the
+ * network and stayed quiet, with nothing saying why. */
+static int link_to_s16(int16_t *dst, const void *src, size_t count,
+	uint32_t bits, int is_float)
+{
+	size_t i;
+
+	if (is_float) {
+		if (bits == 32) {
+			const float *f = (const float *)src;
+			for (i = 0; i < count; i++) {
+				double v = f[i] * 32767.0;
+				dst[i] = (int16_t)((v > 32767.0) ? 32767.0
+					: (v < -32768.0) ? -32768.0 : v);
+			}
+			return 1;
+		}
+		if (bits == 64) {
+			const double *d = (const double *)src;
+			for (i = 0; i < count; i++) {
+				double v = d[i] * 32767.0;
+				dst[i] = (int16_t)((v > 32767.0) ? 32767.0
+					: (v < -32768.0) ? -32768.0 : v);
+			}
+			return 1;
+		}
+		return 0;
+	}
+
+	switch (bits) {
+	case 8: {
+		/* schism's 8-bit output is UNSIGNED, so centre it and scale up. */
+		const uint8_t *u = (const uint8_t *)src;
+		for (i = 0; i < count; i++)
+			dst[i] = (int16_t)(((int)u[i] - 128) << 8);
+		return 1;
+	}
+	case 16:
+		memcpy(dst, src, count * sizeof(int16_t));
+		return 1;
+	case 24: {
+		/* three bytes per sample, little-endian; keep the top 16 bits */
+		const uint8_t *b = (const uint8_t *)src;
+		for (i = 0; i < count; i++)
+			dst[i] = (int16_t)(b[i * 3 + 1] | (b[i * 3 + 2] << 8));
+		return 1;
+	}
+	case 32: {
+		const int32_t *l = (const int32_t *)src;
+		for (i = 0; i < count; i++)
+			dst[i] = (int16_t)(l[i] >> 16);
+		return 1;
+	}
+	}
+	return 0;
+}
+
 void link_audio_end(const void *buffer, uint32_t frames, uint32_t channels,
-	uint32_t bits, uint32_t sample_rate)
+	uint32_t bits, int is_float, uint32_t sample_rate)
 {
 	struct abl_link_audio_sink_buffer_handle handle;
+	const int16_t *out;
 	size_t want;
 
 	if (!g_sink_up || !g_state_valid || !buffer || !frames || !sample_rate)
 		return;
 
-	/* The sink takes interleaved int16. Schism can be configured for 8 or 32 bit
-	 * output, and converting here would mean a scratch buffer and a conversion in
-	 * the audio callback for a case nobody sends over the network on purpose --
-	 * so publish only when we are already producing what the sink wants. */
-	if (bits != 16)
-		return;
-
 	want = (size_t)frames * (size_t)channels;
+	if (want > LINK_CONV_SAMPLES)
+		return;                 /* absurd buffer; skip rather than overrun */
+
+	if (bits == 16 && !is_float) {
+		out = (const int16_t *)buffer;   /* already what the sink wants */
+	} else {
+		if (!link_to_s16(g_conv, buffer, want, bits, is_float)) {
+			g_badfmt++;
+			return;                     /* unknown format */
+		}
+		out = g_conv;
+	}
+
+	/* Tell the sink how much room we need, whenever that changes. This used to sit
+	 * only on the "handle was valid but too small" path -- which meant that if the
+	 * sink handed out NO buffer, it was never asked for one either, and the channel
+	 * stayed visible on the network and permanently silent. Request first, ask
+	 * second. Documented realtime-safe. */
+	if (want != g_conv_requested) {
+		abl_link_audio_sink_request_max_num_samples(g_sink, want);
+		g_conv_requested = want;
+	}
 
 	handle = abl_link_audio_sink_retain_buffer(g_sink);
-	if (!abl_link_audio_sink_buffer_is_valid(&handle))
-		return;
+	if (!abl_link_audio_sink_buffer_is_valid(&handle)) {
+		g_norefuse++;
+		return;                 /* nobody listening yet, or no buffer free */
+	}
 
 	if (handle.max_num_samples < want || !handle.samples) {
-		/* Ask for more room; this buffer is skipped rather than truncated,
-		 * because a short commit would be heard as a gap. */
+		/* Skip this buffer rather than truncate it: a short commit would be heard
+		 * as a gap. The request above will have grown it by the next callback. */
 		abl_link_audio_sink_buffer_release(&handle);
-		abl_link_audio_sink_request_max_num_samples(g_sink, want);
+		g_toosmall++;
 		return;
 	}
 
-	memcpy(handle.samples, buffer, want * sizeof(int16_t));
+	memcpy(handle.samples, out, want * sizeof(int16_t));
 
-	abl_link_audio_sink_buffer_commit(&handle, g_state_audio, g_beat_at_buffer,
-		LINK_QUANTUM, (size_t)frames, (size_t)channels, sample_rate);
+	if (abl_link_audio_sink_buffer_commit(&handle, g_state_audio, g_beat_at_buffer,
+			LINK_QUANTUM, (size_t)frames, (size_t)channels, sample_rate))
+		g_commits++;
+}
+
+void link_audio_stats(unsigned long *commits, unsigned long *no_buffer,
+	unsigned long *too_small, unsigned long *bad_format)
+{
+	if (commits)    *commits    = g_commits;
+	if (no_buffer)  *no_buffer  = g_norefuse;
+	if (too_small)  *too_small  = g_toosmall;
+	if (bad_format) *bad_format = g_badfmt;
 }
 
 #endif /* USE_LINK */

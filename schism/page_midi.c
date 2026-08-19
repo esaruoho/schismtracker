@@ -271,8 +271,32 @@ static void midi_page_redraw(void)
 		/* Row 40, cols 27-51: row 38 already carries "Embed MIDI data" from col 37
 		 * and it is drawn AFTER this, so anything here was overwritten mid-word.
 		 * Row 40 is empty up to the box at col 52. */
-		draw_fill_chars(27, 40, 51, 40, DEFAULT_FG, 0);
-		draw_text_len(lbuf, 24, 27, 40, 5, 0);
+		/* Row 39, cols 27-51. Row 38 carries "Embed MIDI data" from col 37, and
+		 * row 41 the Output Configuration button (cols 2-28) and "IP MIDI ports"
+		 * (col 39) -- both were checked, not assumed. */
+		draw_fill_chars(27, 39, 51, 39, DEFAULT_FG, 0);
+		draw_text_len(lbuf, 24, 27, 39, 5, 0);
+
+		/* Link Audio publication, on the row below: "the channel is listed but
+		 * records silence" needs to be answerable from here.
+		 * FEATURE-CARD >> features/ableton-link.feature */
+		if (link_available() && (link_flags & LINK_FLAG_AUDIO_SEND)) {
+			unsigned long tx, nb, ts, bf;
+			char abuf[40];
+			link_audio_stats(&tx, &nb, &ts, &bf);
+			if (tx)
+				snprintf(abuf, sizeof(abuf), "audio: %lu sent", tx);
+			else if (bf)
+				snprintf(abuf, sizeof(abuf), "audio: format unsupported");
+			else if (ts)
+				snprintf(abuf, sizeof(abuf), "audio: buffer too small");
+			else if (nb)
+				snprintf(abuf, sizeof(abuf), "audio: no listener (%lu)", nb);
+			else
+				snprintf(abuf, sizeof(abuf), "audio: idle");
+			draw_fill_chars(27, 40, 51, 40, DEFAULT_FG, 0);
+			draw_text_len(abuf, 24, 27, 40, 5, 0);
+		}
 	}
 
 	draw_fill_chars(23, 30, 24, 39, DEFAULT_FG, 0);
