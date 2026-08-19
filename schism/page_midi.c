@@ -28,6 +28,7 @@
 #include "keyboard.h"
 #include "page.h"
 #include "midi.h"
+#include "link.h"
 #include "widget.h"
 #include "vgamem.h"
 
@@ -37,7 +38,7 @@
 
 static int top_midi_port = 0;
 static int current_port = 0;
-static struct widget widgets_midi[17];
+static struct widget widgets_midi[19];
 static time_t last_midi_poll = 0;
 
 /* --------------------------------------------------------------------- */
@@ -79,6 +80,19 @@ static void update_midi_values(void)
 	else
 		current_song->flags &= ~SONG_EMBEDMIDICFG;
 
+	/* Ableton Link. Two switches, not four: "Ableton Link" means the whole sync
+	 * behaviour -- join the session, follow its tempo, share transport -- because
+	 * that is what Link means to anyone who has used it elsewhere. Link Audio is
+	 * separate because announcing an audio channel on the network is a bigger
+	 * thing to do than sharing a tempo. The finer flags still exist in the config
+	 * for anyone who wants them apart.
+	 * FEATURE-CARD >> features/ableton-link.feature */
+	link_flags = (widgets_midi[17].d.toggle.state
+			? (LINK_FLAG_ENABLED | LINK_FLAG_TEMPO_FOLLOW | LINK_FLAG_STARTSTOP)
+			: 0)
+		| (widgets_midi[18].d.toggle.state ? LINK_FLAG_AUDIO_SEND : 0);
+	link_apply_flags();
+
 	midi_amplification = widgets_midi[7].d.thumbbar.value;
 	midi_c5note = widgets_midi[8].d.thumbbar.value;
 	midi_pitch_depth = widgets_midi[10].d.thumbbar.value;
@@ -95,6 +109,8 @@ static void get_midi_config(void)
 	widgets_midi[9].d.toggle.state = !!(midi_flags & MIDI_PITCHBEND);
 	widgets_midi[15].d.toggle.state = !!(midi_flags & MIDI_CLOCK_SYNC);
 	widgets_midi[16].d.toggle.state = !!(midi_flags & MIDI_MULTITIMBRAL);
+	widgets_midi[17].d.toggle.state = !!(link_flags & LINK_FLAG_ENABLED);
+	widgets_midi[18].d.toggle.state = !!(link_flags & LINK_FLAG_AUDIO_SEND);
 	widgets_midi[11].d.toggle.state = !!(current_song->flags & SONG_EMBEDMIDICFG);
 
 	widgets_midi[7].d.thumbbar.value = midi_amplification;
@@ -229,9 +245,32 @@ static void midi_page_redraw(void)
 	draw_text(        "Cut note off", 7, 35, 0, 2);
 	draw_text(     "MIDI clock sync", 4, 36, 0, 2);
 	draw_text(     "Multitimbral in", 4, 37, 0, 2);
+	draw_text(       "Ableton Link", 7, 38, 0, 2);
+	draw_text(      "Link Audio out", 5, 39, 0, 2);
 
-	draw_fill_chars(23, 30, 24, 37, DEFAULT_FG, 0);
-	draw_box(19,29,25,38, BOX_THIN|BOX_INNER|BOX_INSET);
+	/* Say what Link is actually doing, so "is it working?" is answerable from the
+	 * screen: peer count and the session tempo, or why it is not running.
+	 * FEATURE-CARD >> features/ableton-link.feature */
+	{
+		char lbuf[40];
+		if (!link_available()) {
+			strncpy(lbuf, "not in this build", sizeof(lbuf) - 1);
+			lbuf[sizeof(lbuf) - 1] = '\0';
+		} else if (!(link_flags & LINK_FLAG_ENABLED)) {
+			strncpy(lbuf, "off", sizeof(lbuf) - 1);
+			lbuf[sizeof(lbuf) - 1] = '\0';
+		} else {
+			int peers = link_num_peers();
+			double t = link_session_tempo();
+			snprintf(lbuf, sizeof(lbuf), "%d peer%s, %.1f bpm",
+				peers, (peers == 1) ? "" : "s", t);
+		}
+		draw_fill_chars(27, 38, 51, 38, DEFAULT_FG, 0);
+		draw_text_len(lbuf, 25, 27, 38, 5, 0);
+	}
+
+	draw_fill_chars(23, 30, 24, 39, DEFAULT_FG, 0);
+	draw_box(19,29,25,40, BOX_THIN|BOX_INNER|BOX_INSET);
 
 	draw_box(52,29,73,32, BOX_THIN|BOX_INNER|BOX_INSET);
 
@@ -383,6 +422,10 @@ void midi_load_page(struct page *page)
 	/* follow an incoming MIDI clock; sits below "Cut note off" */
 	widget_create_toggle(widgets_midi + 15, 20, 36, 6, 16, 10, 10, 10, update_midi_values);
 	/* route incoming notes by MIDI channel */
-	widget_create_toggle(widgets_midi + 16, 20, 37, 15, 13, 10, 10, 10, update_midi_values);
+	widget_create_toggle(widgets_midi + 16, 20, 37, 15, 17, 10, 10, 10, update_midi_values);
+	/* Ableton Link: join the session (tempo + transport) */
+	widget_create_toggle(widgets_midi + 17, 20, 38, 16, 18, 10, 10, 10, update_midi_values);
+	/* Link Audio: publish our output as a channel on the network */
+	widget_create_toggle(widgets_midi + 18, 20, 39, 17, 13, 10, 10, 10, update_midi_values);
 }
 

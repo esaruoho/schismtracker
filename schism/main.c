@@ -41,6 +41,7 @@
 #include "config.h"
 #include "version.h"
 #include "song.h"
+#include "link.h"
 #include "midi.h"
 #include "dmoz.h"
 #include "charset.h"
@@ -850,6 +851,11 @@ SCHISM_NORETURN static void event_loop(void)
 
 		check_update();
 
+		/* Ableton Link transport sync happens here rather than in the audio
+		 * callback: song_start()/song_stop() are nowhere near realtime-safe.
+		 * FEATURE-CARD >> features/ableton-link.feature */
+		link_poll();
+
 		switch (song_get_mode()) {
 		case MODE_PLAYING:
 		case MODE_PATTERN_LOOP:
@@ -1201,6 +1207,7 @@ void schism_exit(int x)
 	song_stop_unlocked(1);
 	song_unlock_audio();
 
+	link_quit();
 	midi_engine_stop();
 
 	dmoz_quit();
@@ -1441,6 +1448,8 @@ int schism_main(int argc, char **argv)
 	palette_apply();
 	font_init();
 	midi_engine_start();
+	link_init();
+	link_apply_flags();   /* honours whatever the config restored */
 	audio_init(audio_driver, audio_device);
 	song_init_modplug();
 

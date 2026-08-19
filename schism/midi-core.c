@@ -27,6 +27,7 @@
 #include "events.h"
 #include "util.h"
 #include "midi.h"
+#include "link.h"
 #include "song.h"
 #include "page.h"
 #include "it.h"
@@ -124,6 +125,12 @@ void cfg_load_midi(cfg_file_t *cfg)
 	CFG_GET_MI(flags, MIDI_TICK_QUANTIZE | MIDI_RECORD_NOTEOFF | MIDI_CLOCK_SYNC
 		| MIDI_RECORD_VELOCITY | MIDI_RECORD_AFTERTOUCH
 		| MIDI_PITCHBEND);
+	/* Ableton Link, in the MIDI section because that is where sync lives as far
+	 * as the user is concerned. Defaults to 0 -- joining a network session and
+	 * announcing an audio channel must both be deliberate.
+	 * FEATURE-CARD >> features/ableton-link.feature */
+	link_flags = cfg_get_number(cfg, "MIDI", "link_flags", 0);
+
 	CFG_GET_MI(pitch_depth, 12);
 	CFG_GET_MI(amplification, 100);
 	CFG_GET_MI(c5note, 60);
@@ -173,6 +180,7 @@ void cfg_save_midi(cfg_file_t *cfg)
 	uint32_t i, j;
 
 	CFG_SET_MI(flags);
+	cfg_set_number(cfg, "MIDI", "link_flags", link_flags);
 	CFG_SET_MI(pitch_depth);
 	CFG_SET_MI(amplification);
 	CFG_SET_MI(c5note);

@@ -1,0 +1,180 @@
+# =============================================================================
+# WIKI PAGE / REPORT CARD: Ableton Link + Link Audio
+# Convention: GHERKIN-FEATURE-WIKI-PATTERN.md (as used in esaruoho/impulse-tracker)
+#
+# Asked for 2026-08-19 after someone donated and said: "Could you imagine having
+# Impulse/Schism Tracker with Ableton Link or even Link Audio??? I would kill for
+# that." So: shared tempo, shared transport, and schism's output published as an
+# audio channel on the network.
+#
+# WHAT THIS CARD SPAWNS (generative SEED):
+#   - CODESPACE  : schism/link.c + include/link.h, the --enable-link plumbing, the
+#                  link/ submodule, and the four call sites that reach it.
+#   - THINKSPACE : why the C++ stays in exactly one translation unit, which thread
+#                  is allowed to do what, and the tempo-resolution limit.
+#   - AREASPACE  : owns network tempo/transport/audio sharing. Must NOT change the
+#                  mixer, and must be inert in a default build.
+#
+# Report-card legend:
+#   @shipped        - in the fork
+#   @build-verified - both configurations build clean
+#   @lib-verified   - proven at runtime against the vendored library itself
+#   @hw-untested    - not yet confirmed against real Link software
+#
+# Source files linked back to this card:
+#   include/link.h            - the whole contract, inert without USE_LINK
+#   schism/link.c             - app-thread half and audio-thread half
+#   configure.ac              - --enable-link, the C++17 probe, platform defines
+#   Makefile.am               - link.c always built; abl_link.cpp only if enabled
+#   schism/audio_playback.c   - link_audio_begin / link_audio_end in the callback
+#   schism/main.c             - link_init / link_quit / link_poll
+#   schism/midi-core.c        - link_flags persisted in the MIDI config section
+#   schism/page_midi.c        - the two toggles and the live status readout
+#
+# WATCH: link_flags link_init link_quit link_apply_flags link_poll link_audio_begin
+#        link_audio_end link_num_peers link_session_tempo abl_link_create
+#        abl_link_capture_audio_session_state abl_link_audio_sink_create
+# =============================================================================
+
+Feature: Sharing tempo, transport and audio over Ableton Link
+  As someone playing schism alongside other music software,
+  I want it to share a beat, a transport and its audio over the network,
+  So that it belongs in a setup with Live and everything else that speaks Link.
+
+  @shipped @build-verified @hw-untested
+  Scenario: Two switches on the MIDI page, off until asked
+    # cite: schism/page_midi.c -- widgets 17 and 18, rows 38 and 39
+    # cite: schism/midi-core.c -- link_flags in the [MIDI] config section, default 0
+    Given a build with Link compiled in
+    Then the MIDI page has an "Ableton Link" toggle and a "Link Audio out" toggle
+    And both are off until switched on, and the setting persists
+    And turning them on or off takes effect immediately, with no restart
+
+  @shipped @build-verified @hw-untested
+  Scenario: The page says what Link is actually doing
+    # cite: schism/page_midi.c -- peer count and session tempo drawn at row 38
+    # Without this the only evidence was in the message log, which is a poor way to
+    # answer "is it working?".
+    Given Link is switched on
+    Then the page shows the peer count and the session tempo
+    And it says "off", or "not in this build", when that is the case
+
+  @shipped @build-verified @hw-untested
+  Scenario: Tempo and transport follow the session
+    # cite: schism/link.c link_audio_begin -- abl_link_capture_audio_session_state
+    #       then abl_link_tempo, applied via song_set_current_tempo
+    # cite: schism/link.c link_poll -- song_start / song_stop on the APP thread
+    Given Link is switched on and another peer changes the tempo
+    Then schism's tempo follows it
+    And starting or stopping playback on either side starts or stops the other
+
+  @shipped @build-verified @hw-untested
+  Scenario: Link Audio publishes schism's output as a channel
+    # cite: schism/link.c link_audio_end -- retain_buffer / memcpy / commit
+    # cite: abl_link_audio_sink_create(link, "Schism Tracker", 65536)
+    Given "Link Audio out" is switched on
+    When schism renders a buffer
+    Then it is committed to a Link Audio sink named "Schism Tracker"
+    And other Link Audio software on the network can listen to it
+
+  @lib-verified
+  Scenario: The vendored library really does form a session
+    # Not just "it links" -- two abl_link instances in one process, built with the
+    # exact flags configure.ac uses, one setting 138 BPM:
+    #     PEERS=1 TEMPO=138.00 BEAT=0.234  -> session works
+    # So the submodule, the include paths, the platform define and the C++17 flag
+    # are all correct, independently of schism.
+    Given the library is built the way configure.ac builds it
+    Then two peers discover each other and share a tempo and a beat
+
+  @design-note
+  Scenario: Exactly one C++ translation unit, and schism stays C
+    # Link is C++17 header-only; schism is C99 with no C++ anywhere. The bridge is
+    # Link's OWN C API (link/extensions/abl_link), so the only file compiled as C++
+    # is abl_link.cpp -- about five seconds, one object. Every schism source that
+    # touches Link includes link.h and calls C functions.
+    Given a C project and a C++ library
+    Then the library's own C wrapper is the seam, and it is one file wide
+
+  @design-note
+  Scenario: Which thread is allowed to do what
+    # abl_link_capture_audio_session_state is documented realtime-safe, so tempo
+    # follow and the audio commit happen in the callback. song_start() and
+    # song_stop() are nowhere near realtime-safe, so transport sync does NOT: the
+    # audio thread only records what Link wants (g_want_playing) and link_poll(),
+    # called from the event loop beside check_update(), acts on it.
+    # g_told_playing stops us echoing our own announcement back at the session.
+    Given a realtime callback and a transport that allocates
+    Then the callback notices and the app thread acts
+
+  @design-note
+  Scenario: Off by default at BOTH levels, and why
+    # --enable-link defaults to no: Link needs a C++17 compiler and the submodule,
+    # and only supports Windows, macOS and Linux -- while sys/ still has wii, wiiu,
+    # xbox, os2 and dos, which must keep building. A default build compiles
+    # schism/link.c to stubs and contains ZERO abl_link symbols (verified with nm).
+    # And even in a Link build it is off until switched on: joining a network
+    # session and announcing an audio channel should never happen by surprise.
+    Given a tree that also targets consoles and DOS
+    Then the feature is opt-in to compile and opt-in to run
+
+  @corrected
+  Scenario: link.c must be compiled even when Link is not
+    # It was first listed inside "if USE_LINK" in Makefile.am. But the call sites in
+    # audio_playback.c, main.c, midi-core.c and page_midi.c are unconditional, so a
+    # default build would have failed at link time with undefined link_* symbols.
+    # It is always compiled now and self-stubs behind #ifndef USE_LINK. Caught by
+    # actually running a default build rather than assuming one.
+    Given a feature reached from unconditional call sites
+    Then its stubs are part of every build
+
+  @corrected
+  Scenario: AC_PROG_CXX cannot be called conditionally
+    # Putting it inside "if test x$enable_link = xyes" made configure die with
+    # 'conditional "am__fastdepCXX" was never defined' -- automake derives that from
+    # AC_PROG_CXX and needs it at top level whenever any C++ source appears in
+    # Makefile.am. It is unconditional now; it only DETECTS a compiler, and nothing
+    # C++ is compiled without --enable-link.
+    Given automake needs the C++ dependency machinery declared once, at top level
+    Then the compiler check is unconditional and only its USE is conditional
+
+  # --- open items -----------------------------------------------------------
+
+  @todo
+  Scenario: Tempo resolution -- the known limit
+    # IT's tempo is an INTEGER BPM in 31..255, so a Link session at 120.5 cannot be
+    # matched: link_audio_begin rounds, and the residual is a slow phase drift
+    # against the session. Nothing here is broken; it is a format limit.
+    # The fix, when phase lock is attempted, is to stop rounding the tempo and
+    # instead nudge the samples-per-tick -- csf->tempo_factor (player/csndfile.c:47)
+    # is the obvious lever, since it already scales tick length.
+    Given IT tempo is an integer and Link's is not
+    Then following it exactly needs sub-BPM tick control, not a rounder tempo
+
+  @todo
+  Scenario: Bar/phase lock -- the part that would make it feel like Link
+    # Tempo follow keeps the SPEED right; it does not make schism start on the
+    # downbeat with everyone else. That needs IT rows mapped onto Link beats
+    # (abl_link_beat_at_time / abl_link_phase_at_time, already captured per buffer as
+    # g_beat_at_buffer) and the tick scheduler nudged to hold phase -- a PLL in the
+    # most timing-sensitive code in the player. Deliberately not attempted yet.
+    Given the same tempo but a different phase
+    Then two peers still do not sound locked, and this is the remaining work
+
+  @todo
+  Scenario: Receiving Link Audio, not just sending
+    # The C API has sources as well as sinks (abl_link_audio_source_*), so listening
+    # to another peer's channel is possible. Sending was done first because it is
+    # what makes schism immediately useful to a Live user.
+    Given the API supports sources
+    Then receiving is a later, separate piece of work
+
+  @todo
+  Scenario: Non-16-bit output is not published
+    # cite: schism/link.c link_audio_end -- returns early unless bits == 16
+    # The sink takes interleaved int16 and schism can be set to 8 or 32 bit, which
+    # would need a conversion and a scratch buffer inside the audio callback. Left
+    # out rather than done badly -- but the status readout does not yet SAY so,
+    # which is the part worth fixing first.
+    Given the sink wants int16
+    Then other output depths are skipped, and should say so

@@ -95,3 +95,37 @@ Enjoy.
 
 See the `macos` section of `.github/workflows/osx.yml` for how Schism
 currently does it.
+
+## Ableton Link + Link Audio (fork)
+
+Off by default. To build it in:
+
+```sh
+git submodule update --init --recursive     # brings in link/ and its asio submodule
+./configure --enable-link
+make
+```
+
+It needs a C++17 compiler. `link/extensions/abl_link/src/abl_link.cpp` is the only
+C++ translation unit in the project — everything else stays C, because Link ships
+its own C API.
+
+Without `--enable-link` nothing changes: `schism/link.c` compiles to stubs and the
+binary contains no Link code at all.
+
+Once built in, it is still switched on and off at runtime on the **MIDI page
+(Shift-F1)**:
+
+- **Ableton Link** — join the session: follow its tempo, share transport start/stop.
+- **Link Audio out** — additionally publish schism's output as a Link Audio channel
+  named "Schism Tracker".
+
+The row shows the live peer count and session tempo so you can see it working. Both
+settings persist in the config as `link_flags` under `[MIDI]`.
+
+Link supports Windows, macOS and Linux only, which is the other reason this is
+opt-in: the wii, wiiu, xbox, os2 and dos targets have to keep building.
+
+See `features/ableton-link.feature` for the design notes and the open items —
+notably that tempo *follow* works but bar/phase lock does not yet, and that IT's
+integer BPM cannot match a fractional Link tempo exactly.

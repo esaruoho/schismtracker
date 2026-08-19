@@ -83,6 +83,19 @@ AC_ARG_ENABLE(fortify-source,
 	ADD_FORTIFY=$enableval,
 	ADD_FORTIFY=check)
 
+dnl --- Ableton Link -------------------------------------------------------
+dnl Off by default. Link is C++17 and this is otherwise a pure C project, so
+dnl enabling it pulls in a C++ compiler and the link/ submodule (which has its
+dnl own asio submodule). It also only supports Windows, macOS and Linux, while
+dnl this tree still targets wii, wiiu, xbox, os2 and dos -- so it must never be
+dnl on unless asked for.
+dnl Once built in, it is still switched on and off at RUNTIME from the MIDI
+dnl page; --enable-link only decides whether the code is present at all.
+AC_ARG_ENABLE(link,
+	AS_HELP_STRING([--enable-link], [Build Ableton Link + Link Audio support (needs C++17 and the link/ submodule) @<:@default=no@:>@]),
+	[enable_link=$enableval],
+	[enable_link=no])
+
 AC_ARG_ENABLE(flac-linking,
 	AS_HELP_STRING([--enable-flac-linking], [Link to FLAC rather than loading at runtime @<:default=check@:>@]),
 	FLAC_LINKING=$enableval,
@@ -290,6 +303,60 @@ dnl Necessary for building the internal help.
 AC_CHECK_TOOL([PERL], [perl])
 AC_SUBST([PERL])
 AM_CONDITIONAL([HAVE_PERL], [test "x$PERL" != "x"])
+
+dnl --- Ableton Link: bring in a C++ compiler only if asked ----------------
+LINK_CPPFLAGS=""
+LINK_LIBS=""
+dnl AC_PROG_CXX must be unconditional: automake defines am__fastdepCXX from it,
+dnl and refuses to generate a Makefile if it was only reached inside an if. It only
+dnl DETECTS a C++ compiler -- nothing C++ is compiled unless --enable-link.
+AC_PROG_CXX
+
+if test "x$enable_link" = "xyes"; then
+	dnl Plain compile test rather than AX_CHECK_COMPILE_FLAG -- this tree does
+	dnl not vendor autoconf-archive.
+	AC_LANG_PUSH([C++])
+	saved_CXXFLAGS="$CXXFLAGS"
+	CXXFLAGS="$CXXFLAGS -std=c++17"
+	AC_MSG_CHECKING([whether $CXX accepts -std=c++17])
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <optional>]],
+		[[std::optional<int> x{1}; return x ? 0 : 1;]])],
+		[AC_MSG_RESULT([yes]); LINK_CXXSTD="-std=c++17"],
+		[AC_MSG_RESULT([no])
+		 AC_MSG_ERROR([*** Ableton Link needs a C++17 compiler; configure without --enable-link])])
+	CXXFLAGS="$saved_CXXFLAGS"
+	AC_LANG_POP([C++])
+
+	dnl The one C++ translation unit we build is Link's own C wrapper.
+	if test ! -f "$srcdir/link/extensions/abl_link/include/abl_link.h"; then
+		AC_MSG_ERROR([*** link/ is empty -- run: git submodule update --init --recursive])
+	fi
+	if test ! -f "$srcdir/link/modules/asio-standalone/asio/include/asio.hpp"; then
+		AC_MSG_ERROR([*** link/modules/asio-standalone is empty -- run: git submodule update --init --recursive])
+	fi
+
+	case "$host" in
+		*-*-darwin*)
+			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_MACOSX=1"
+			;;
+		*-*-mingw*|*-*-cygwin*|*-*-windows*)
+			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_WINDOWS=1"
+			LINK_LIBS="-lws2_32 -liphlpapi"
+			;;
+		*)
+			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_LINUX=1 -DLINK_PLATFORM_UNIX=1"
+			LINK_LIBS="-lpthread"
+			;;
+	esac
+
+	LINK_CPPFLAGS="-I\$(top_srcdir)/link/include -I\$(top_srcdir)/link/extensions/abl_link/include -I\$(top_srcdir)/link/modules/asio-standalone/asio/include -DASIO_STANDALONE=1 $LINK_PLATFORM_DEFINE"
+	AC_DEFINE([USE_LINK], [1], [Define if Ableton Link support is built in])
+	AC_MSG_NOTICE([Ableton Link + Link Audio: enabled])
+fi
+AC_SUBST([LINK_CPPFLAGS])
+AC_SUBST([LINK_CXXSTD])
+AC_SUBST([LINK_LIBS])
+AM_CONDITIONAL([USE_LINK], [test "x$enable_link" = "xyes"])
 
 dnl We're using C
 AC_LANG([C])

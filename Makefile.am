@@ -767,7 +767,22 @@ component_cflags = $(cflags_alsa) $(cflags_oss) \
 	$(cflags_xbox) $(UTF8PROC_CFLAGS) $(cflags_avformat) \
 	$(cflags_asio) $(cflags_zlib) $(cflags_bzip2) \
 	$(cflags_lzma) $(cflags_zstd)
-schismtracker_CPPFLAGS = -I$(srcdir)/include -I. $(cppflags_wii) $(cppflags_wiiu)
+# --- Ableton Link ------------------------------------------------------------
+# Two files only: our C shim, and Link's own C wrapper -- which is the ONLY C++
+# translation unit in the project. Everything of Link's is header-only behind it,
+# so schism's own sources stay pure C.
+# schism/link.c is ALWAYS built: without USE_LINK it compiles to stubs, and the
+# callers in audio_playback.c / main.c / midi-core.c / page_midi.c are
+# unconditional, so leaving it out of a default build breaks the link.
+schismtracker_SOURCES += schism/link.c
+
+if USE_LINK
+# Link's own C wrapper -- the only C++ translation unit in the project.
+schismtracker_SOURCES += link/extensions/abl_link/src/abl_link.cpp
+schismtracker_CXXFLAGS = $(AM_CXXFLAGS) @LINK_CXXSTD@ @LINK_CPPFLAGS@ -I$(srcdir)/include
+endif
+
+schismtracker_CPPFLAGS = -I$(srcdir)/include -I. $(cppflags_wii) $(cppflags_wiiu) @LINK_CPPFLAGS@
 schismtracker_CFLAGS = $(AM_CFLAGS) $(component_cflags)
 schismtracker_OBJCFLAGS = $(AM_OBJCFLAGS) $(component_cflags)
 
@@ -781,7 +796,8 @@ schismtracker_LDADD = $(LIBM) $(libs_sdl3) \
 	$(libs_sdl2) $(libs_sdl12) $(libs_macos) \
 	$(libs_os2) $(libs_xbox) $(libs_avformat) \
 	$(libs_asio) $(libs_zlib) $(libs_bzip2) \
-	$(libs_lzma) $(libs_zstd)
+	$(libs_lzma) $(libs_zstd) \
+	@LINK_LIBS@
 schismtracker_LDFLAGS = $(ldflags_macosx) \
 	$(ldflags_wii)
 

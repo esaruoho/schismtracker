@@ -27,6 +27,7 @@
 #include "config.h"
 #include "page.h"
 #include "song.h"
+#include "link.h"
 #include "slurp.h"
 #include "config-parser.h"
 #include "mem.h"
@@ -215,6 +216,12 @@ static void audio_callback(uint8_t *stream, uint32_t len)
 	/* len is output buffer size */
 	audio_reallocate_buffer(len / (audio_output_channels * (audio_output_bits_real / 8)));
 
+	/* Ableton Link: take the session snapshot for this buffer before anything is
+	 * rendered, since tempo follow has to be in effect for the rows we are about
+	 * to play. Inert unless Link is switched on.
+	 * FEATURE-CARD >> features/ableton-link.feature */
+	link_audio_begin(audio_buffer_samples, current_song ? current_song->mix_frequency : 0);
+
 	if (!stream || !len || !current_song) {
 		if (status.current_page == PAGE_WATERFALL || status.vis_style == VIS_FFT)
 			vis_work_8m(NULL, 0);
@@ -254,6 +261,13 @@ static void audio_callback(uint8_t *stream, uint32_t len)
 	} else {
 		memcpy(stream, audio_buffer, n * audio_sample_size);
 	}
+
+	/* Link Audio: publish what we just rendered. `stream` is the finished output,
+	 * interleaved, and n is frames (audio_sample_size is bytes per frame). Inert
+	 * unless Link Audio is switched on.
+	 * FEATURE-CARD >> features/ableton-link.feature */
+	link_audio_end(stream, n, audio_output_channels, audio_output_bits,
+		current_song->mix_frequency);
 
 	/* convert 8-bit unsigned to signed by XORing the high bit */
 	if (audio_output_bits == 8)
