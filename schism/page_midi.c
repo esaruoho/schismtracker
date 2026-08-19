@@ -271,31 +271,36 @@ static void midi_page_redraw(void)
 		/* Row 40, cols 27-51: row 38 already carries "Embed MIDI data" from col 37
 		 * and it is drawn AFTER this, so anything here was overwritten mid-word.
 		 * Row 40 is empty up to the box at col 52. */
-		/* Row 39, cols 27-51. Row 38 carries "Embed MIDI data" from col 37, and
-		 * row 41 the Output Configuration button (cols 2-28) and "IP MIDI ports"
-		 * (col 39) -- both were checked, not assumed. */
-		draw_fill_chars(27, 39, 51, 39, DEFAULT_FG, 0);
-		draw_text_len(lbuf, 24, 27, 39, 5, 0);
-
-		/* Link Audio publication, on the row below: "the channel is listed but
-		 * records silence" needs to be answerable from here.
+		/* One line, row 47, full width. Rows 38-41 are all taken: 38 by
+		 * "Embed MIDI data" (col 37), 39/40 by the boxes on the right (col 52+),
+		 * 41 by the Output Configuration button (cols 2-28) and "IP MIDI ports"
+		 * (col 39) -- and squeezing it in beside the toggle box clipped it.
+		 * Nothing is drawn below row 41 except the two buttons (rows 41-43 and
+		 * 44-46), so row 47 is clear all the way across.
 		 * FEATURE-CARD >> features/ableton-link.feature */
-		if (link_available() && (link_flags & LINK_FLAG_AUDIO_SEND)) {
-			unsigned long tx, nb, ts, bf;
-			char abuf[40];
-			link_audio_stats(&tx, &nb, &ts, &bf);
-			if (tx)
-				snprintf(abuf, sizeof(abuf), "audio: %lu sent", tx);
-			else if (bf)
-				snprintf(abuf, sizeof(abuf), "audio: format unsupported");
-			else if (ts)
-				snprintf(abuf, sizeof(abuf), "audio: buffer too small");
-			else if (nb)
-				snprintf(abuf, sizeof(abuf), "audio: no listener (%lu)", nb);
-			else
-				snprintf(abuf, sizeof(abuf), "audio: idle");
-			draw_fill_chars(27, 40, 51, 40, DEFAULT_FG, 0);
-			draw_text_len(abuf, 24, 27, 40, 5, 0);
+		{
+			char sbuf[80];
+			if (link_available() && (link_flags & LINK_FLAG_AUDIO_SEND)) {
+				unsigned long tx, nb, ts, bf;
+				const char *how;
+				link_audio_stats(&tx, &nb, &ts, &bf);
+				if (tx)          how = "sending";
+				else if (bf)      how = "format unsupported";
+				else if (ts)      how = "buffer too small";
+				else if (nb)      how = "no listener";
+				else              how = "idle";
+				if (tx)
+					snprintf(sbuf, sizeof(sbuf),
+						"Ableton Link: %s     Link Audio: %s, %lu buffers",
+						lbuf, how, tx);
+				else
+					snprintf(sbuf, sizeof(sbuf),
+						"Ableton Link: %s     Link Audio: %s", lbuf, how);
+			} else {
+				snprintf(sbuf, sizeof(sbuf), "Ableton Link: %s", lbuf);
+			}
+			draw_fill_chars(2, 47, 77, 47, DEFAULT_FG, 0);
+			draw_text_len(sbuf, 76, 2, 47, 5, 0);
 		}
 	}
 

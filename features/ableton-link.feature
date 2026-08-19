@@ -197,12 +197,59 @@ Feature: Sharing tempo, transport and audio over Ableton Link
     Given the API supports sources
     Then receiving is a later, separate piece of work
 
+  @shipped @build-verified @hw-verified
+  Scenario: Live records real audio from schism
+    # VERIFIED 2026-08-19/20 by Esa: Live 12.4.3, Link Audio on, "Schism Tracker"
+    # selected as the track's Audio From, monitor In -- recorded a real waveform.
+    #
+    # Two things were needed, and both are worth knowing:
+    #   - Live's Link Audio LATENCY had to be raised from its default. Esa: "by
+    #     increasing the latency i got the audio recording working." Raise it until
+    #     the recording is clean; it is the receive buffer.
+    #   - request_max_num_samples has to be called BEFORE retain_buffer, not only
+    #     after a valid-but-small handle -- see the @corrected scenario.
+    Given Live has Link Audio on and a track set to the Schism Tracker channel
+    When schism plays
+    Then Live records its audio
+
+  @design-note
+  Scenario: "Sync to Incoming Audio" is Live's setting, not ours
+    # Live's own tooltip: "If Link Audio is enabled, setting the Sync to Incoming
+    # Audio to On delays Live's Link session by the set latency. This is useful when
+    # monitoring audio from Link peers through Live. Note that the peers must have
+    # Sync to Incoming Audio set to Off."
+    # schism is a pure SENDER, so it is already in the state Live requires. There is
+    # nothing to add here -- and adding it would be wrong.
+    Given the receiving end delays its session to absorb peer latency
+    Then the sending peer must not do the same, and schism does not
+
+  @corrected
+  Scenario: The channel was announced but permanently silent
+    # request_max_num_samples was only reachable AFTER retain_buffer returned a valid
+    # handle that happened to be too small. But before anything is listening the sink
+    # hands out NO buffer at all (verified in isolation: valid=0, samples=NULL,
+    # max=0), so the early return meant the sink was never asked for one -- the
+    # channel appeared on the network and stayed mute forever.
+    # The request happens first now, whenever the frame size changes.
+    Given a sink that grants no buffer until it knows the size you want
+    Then ask before you take, not after you fail
+
+  @corrected
+  Scenario: The status line kept landing on top of something
+    # Placed at row 38 first: "Embed MIDI data" is drawn on that row from col 37,
+    # AFTER it, so it read "0 peers, 1Embed". Moved to rows 39/40 beside the toggle
+    # box, where it was cramped and clipped. It is one line at row 47 now, full
+    # width: nothing is drawn below row 41 except the two buttons (rows 41-43,
+    # 44-46). Third time, after actually enumerating what occupies each row.
+    Given a text-mode page with no layout manager
+    Then check every draw call on the row before claiming the space
+
   @todo
-  Scenario: Non-16-bit output is not published
-    # cite: schism/link.c link_audio_end -- returns early unless bits == 16
-    # The sink takes interleaved int16 and schism can be set to 8 or 32 bit, which
-    # would need a conversion and a scratch buffer inside the audio callback. Left
-    # out rather than done badly -- but the status readout does not yet SAY so,
-    # which is the part worth fixing first.
-    Given the sink wants int16
-    Then other output depths are skipped, and should say so
+  Scenario: Non-16-bit output publication is untested on hardware
+    # cite: schism/link.c link_to_s16 -- 8-bit (unsigned, centred and scaled),
+    #       24-bit (top 16 of three LE bytes), 32-bit int, 32/64-bit float (clamped)
+    # All of it converts into a static scratch buffer, so the callback never
+    # allocates. Only the 16-bit path is confirmed against Live so far; the others
+    # are read-verified conversions and want a listen at each depth.
+    Given schism can output 8, 16, 24 or 32 bit, integer or float
+    Then all of them convert to the int16 the sink wants
