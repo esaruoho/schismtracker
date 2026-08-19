@@ -393,7 +393,7 @@ void midi_load_page(struct page *page)
 	page->playback_update = NULL;
 	page->handle_key = NULL;
 	page->set_page = get_midi_config;
-	page->total_widgets = 17;
+	page->total_widgets = 19;	/* 17 + the two Ableton Link toggles */
 	page->widgets = widgets_midi;
 	page->help_index = HELP_GLOBAL;
 
