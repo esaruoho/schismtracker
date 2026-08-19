@@ -68,7 +68,7 @@ Feature: Sharing tempo, transport and audio over Ableton Link
     Then schism's tempo follows it
     And starting or stopping playback on either side starts or stops the other
 
-  @shipped @build-verified @hw-untested
+  @shipped @build-verified @hw-verified
   Scenario: Link Audio publishes schism's output as a channel
     # cite: schism/link.c link_audio_end -- retain_buffer / memcpy / commit
     # cite: abl_link_audio_sink_create(link, "Schism Tracker", 65536)
@@ -76,6 +76,11 @@ Feature: Sharing tempo, transport and audio over Ableton Link
     When schism renders a buffer
     Then it is committed to a Link Audio sink named "Schism Tracker"
     And other Link Audio software on the network can listen to it
+    # VERIFIED 2026-08-19 from the installed app bundle, launched the way Spotlight
+    # launches it, with an independent Link Audio receiver on the network:
+    #     channels seen: 1
+    #        [0] name="Schism Tracker" peer="Schism Tracker"
+    #     peers=1
 
   @lib-verified
   Scenario: The vendored library really does form a session
@@ -117,6 +122,29 @@ Feature: Sharing tempo, transport and audio over Ableton Link
     # session and announcing an audio channel should never happen by surprise.
     Given a tree that also targets consoles and DOS
     Then the feature is opt-in to compile and opt-in to run
+
+  @corrected
+  Scenario: Enabling Link Audio crashed, twice over, and both were threading
+    # Esa switched "Link Audio out" on and schism said "crashed". Two races, both mine:
+    #
+    # 1. ONE session-state object shared by both threads. abl_link_session_state is
+    #    documented "Thread-safe: no", and link_audio_begin (audio callback) was
+    #    capturing into the same object link_set_tempo / link_set_playing use from the
+    #    UI. There are two now, g_state_audio and g_state_app, one per thread. This
+    #    stayed hidden while only tempo follow was on, because nothing on the app
+    #    thread touched the state in that configuration.
+    #
+    # 2. The sink was created and destroyed from the UI thread while the audio
+    #    callback was using it -- and the sink calls are "Thread-safe: no" too. Every
+    #    mutation in link_apply_flags and link_quit now happens with song_lock_audio()
+    #    held, so the callback cannot be inside link_audio_begin/end at the time. The
+    #    log_appendf messages are deferred until after the unlock, because holding the
+    #    audio lock across UI drawing is how you get something that sounds like a
+    #    dropout.
+    #
+    # Verified after the fix: the app stays up, and a receiver sees the channel.
+    Given a library that marks its calls "Thread-safe: no"
+    Then the UI must not create, destroy or share them behind the audio callback
 
   @corrected
   Scenario: link.c must be compiled even when Link is not

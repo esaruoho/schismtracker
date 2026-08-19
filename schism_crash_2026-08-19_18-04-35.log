@@ -1,0 +1,9 @@
+Assertion failed: "Failed to initialize a timers backend!".
+
+File: schism/main.c
+Line: 1287
+
+Expression: timer_init()
+
+Platform: Mac OS X
+Architecture: 64-bit arm

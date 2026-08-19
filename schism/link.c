@@ -21,6 +21,7 @@
 #include "link.h"
 #include "song.h"
 #include "log.h"
+#include "player/sndfile.h"
 
 /* Off unless the user asks, every time. Joining a network session and announcing
  * an audio channel are both things that should never happen by surprise. */
@@ -72,8 +73,11 @@ static volatile int g_want_playing = -1;
 /* What we last told Link, so we do not fight our own announcement. */
 static int g_told_playing = -1;
 
-/* Session state captured for this callback, and the beat it starts on. */
-static abl_link_session_state g_state = { NULL };
+/* Session state is documented "Thread-safe: no", so the two threads get one each.
+ * Sharing a single object between the audio callback and the UI was a race, and the
+ * reason enabling the audio send crashed. */
+static abl_link_session_state g_state_audio = { NULL };  /* audio thread only */
+static abl_link_session_state g_state_app = { NULL };    /* app thread only */
 static double g_beat_at_buffer = 0.0;
 static int g_state_valid = 0;
 
@@ -87,7 +91,8 @@ void link_init(void)
 	/* Nothing is created here on purpose: creating the Link instance IS joining
 	 * the session and starting network discovery, and that must wait until the
 	 * user turns it on. */
-	g_state = abl_link_create_session_state();
+	g_state_audio = abl_link_create_session_state();
+	g_state_app = abl_link_create_session_state();
 }
 
 static void link_sink_down(void)
@@ -116,21 +121,41 @@ static void link_leave(void)
 
 void link_quit(void)
 {
+	/* Same reason as link_apply_flags: the callback must not be inside the sink or
+	 * the Link instance while they are torn down. */
+	song_lock_audio();
 	link_leave();
-	if (g_state.impl) {
-		abl_link_destroy_session_state(g_state);
-		g_state.impl = NULL;
+	song_unlock_audio();
+
+	if (g_state_audio.impl) {
+		abl_link_destroy_session_state(g_state_audio);
+		g_state_audio.impl = NULL;
+	}
+	if (g_state_app.impl) {
+		abl_link_destroy_session_state(g_state_app);
+		g_state_app.impl = NULL;
 	}
 }
 
+/* The sink and the Link instance are touched by the audio callback, and Link
+ * documents the sink calls as NOT thread-safe. So every mutation here happens with
+ * the audio lock held: the callback cannot be inside link_audio_begin/end while we
+ * create or destroy them. Creating a sink from the UI while the callback was using
+ * it is what crashed on Esa's machine the moment "Link Audio out" went on. */
 void link_apply_flags(void)
 {
 	int want = !!(link_flags & LINK_FLAG_ENABLED);
+	double joined_now = 0.0;
+	int sink_msg = 0;
+
+	song_lock_audio();
 
 	if (!want) {
-		if (g_joined)
-			log_appendf(5, " Ableton Link disabled");
+		int was = g_joined;
 		link_leave();
+		song_unlock_audio();
+		if (was)
+			log_appendf(5, " Ableton Link disabled");
 		return;
 	}
 
@@ -139,13 +164,17 @@ void link_apply_flags(void)
 
 		g_link = abl_link_create(bpm);
 		if (!g_link.impl) {
-			log_appendf(4, " Ableton Link: could not start");
 			link_flags &= ~LINK_FLAG_ENABLED;
+			song_unlock_audio();
+			log_appendf(4, " Ableton Link: could not start");
 			return;
 		}
 		abl_link_enable(g_link, true);
+		/* Named, so we show up as something recognisable rather than blank in
+		 * whatever is listening. */
+		abl_link_audio_set_peer_name(g_link, "Schism Tracker");
 		g_joined = 1;
-		log_appendf(5, " Ableton Link enabled (tempo %.0f)", bpm);
+		joined_now = bpm;
 	}
 
 	abl_link_enable_start_stop_sync(g_link, !!(link_flags & LINK_FLAG_STARTSTOP));
@@ -162,15 +191,26 @@ void link_apply_flags(void)
 			g_sink = abl_link_audio_sink_create(g_link, "Schism Tracker", 65536);
 			if (g_sink.impl) {
 				g_sink_up = 1;
-				log_appendf(5, " Link Audio: publishing \"Schism Tracker\"");
+				sink_msg = 1;
 			} else {
-				log_appendf(4, " Link Audio: could not create the channel");
 				link_flags &= ~LINK_FLAG_AUDIO_SEND;
+				sink_msg = -1;
 			}
 		}
 	} else {
 		link_sink_down();
 	}
+
+	song_unlock_audio();
+
+	/* Messages after the unlock: log_appendf draws, and holding the audio lock
+	 * across UI work is asking for the kind of stall that sounds like a dropout. */
+	if (joined_now > 0.0)
+		log_appendf(5, " Ableton Link enabled (tempo %.0f)", joined_now);
+	if (sink_msg > 0)
+		log_appendf(5, " Link Audio: publishing \"Schism Tracker\"");
+	else if (sink_msg < 0)
+		log_appendf(4, " Link Audio: could not create the channel");
 }
 
 int link_num_peers(void)
@@ -188,9 +228,9 @@ void link_set_tempo(double bpm)
 	if (!g_joined || (link_flags & LINK_FLAG_TEMPO_FOLLOW))
 		return;
 
-	abl_link_capture_app_session_state(g_link, g_state);
-	abl_link_set_tempo(g_state, bpm, abl_link_clock_micros(g_link));
-	abl_link_commit_app_session_state(g_link, g_state);
+	abl_link_capture_app_session_state(g_link, g_state_app);
+	abl_link_set_tempo(g_state_app, bpm, abl_link_clock_micros(g_link));
+	abl_link_commit_app_session_state(g_link, g_state_app);
 }
 
 void link_set_playing(int playing)
@@ -202,9 +242,9 @@ void link_set_playing(int playing)
 
 	g_told_playing = !!playing;
 
-	abl_link_capture_app_session_state(g_link, g_state);
-	abl_link_set_is_playing(g_state, !!playing, abl_link_clock_micros(g_link));
-	abl_link_commit_app_session_state(g_link, g_state);
+	abl_link_capture_app_session_state(g_link, g_state_app);
+	abl_link_set_is_playing(g_state_app, !!playing, abl_link_clock_micros(g_link));
+	abl_link_commit_app_session_state(g_link, g_state_app);
 }
 
 /* App thread. Acts on anything the audio thread noticed. */
@@ -247,23 +287,23 @@ void link_audio_begin(uint32_t frames, uint32_t sample_rate)
 
 	g_state_valid = 0;
 
-	if (!g_joined || !g_state.impl || !sample_rate)
+	if (!g_joined || !g_state_audio.impl || !sample_rate)
 		return;
 
-	abl_link_capture_audio_session_state(g_link, g_state);
+	abl_link_capture_audio_session_state(g_link, g_state_audio);
 	g_state_valid = 1;
 
 	{
 		const int64_t now = abl_link_clock_micros(g_link);
 
-		tempo = abl_link_tempo(g_state);
+		tempo = abl_link_tempo(g_state_audio);
 		g_tempo = tempo;
 
-		beat = abl_link_beat_at_time(g_state, now, LINK_QUANTUM);
+		beat = abl_link_beat_at_time(g_state_audio, now, LINK_QUANTUM);
 		g_beat_at_buffer = beat;
 
 		if (link_flags & LINK_FLAG_STARTSTOP) {
-			playing = abl_link_is_playing(g_state) ? 1 : 0;
+			playing = abl_link_is_playing(g_state_audio) ? 1 : 0;
 			if (playing != g_told_playing)
 				g_want_playing = playing;   /* the app thread acts */
 		}
@@ -313,7 +353,7 @@ void link_audio_end(const void *buffer, uint32_t frames, uint32_t channels,
 
 	memcpy(handle.samples, buffer, want * sizeof(int16_t));
 
-	abl_link_audio_sink_buffer_commit(&handle, g_state, g_beat_at_buffer,
+	abl_link_audio_sink_buffer_commit(&handle, g_state_audio, g_beat_at_buffer,
 		LINK_QUANTUM, (size_t)frames, (size_t)channels, sample_rate);
 }
 
