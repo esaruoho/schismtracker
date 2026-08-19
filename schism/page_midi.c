@@ -262,11 +262,17 @@ static void midi_page_redraw(void)
 		} else {
 			int peers = link_num_peers();
 			double t = link_session_tempo();
-			snprintf(lbuf, sizeof(lbuf), "%d peer%s, %.1f bpm",
-				peers, (peers == 1) ? "" : "s", t);
+			if (peers > 0)
+				snprintf(lbuf, sizeof(lbuf), "%d peer%s, %.1f bpm",
+					peers, (peers == 1) ? "" : "s", t);
+			else
+				snprintf(lbuf, sizeof(lbuf), "on, no peers yet");
 		}
-		draw_fill_chars(27, 38, 51, 38, DEFAULT_FG, 0);
-		draw_text_len(lbuf, 25, 27, 38, 5, 0);
+		/* Row 40, cols 27-51: row 38 already carries "Embed MIDI data" from col 37
+		 * and it is drawn AFTER this, so anything here was overwritten mid-word.
+		 * Row 40 is empty up to the box at col 52. */
+		draw_fill_chars(27, 40, 51, 40, DEFAULT_FG, 0);
+		draw_text_len(lbuf, 24, 27, 40, 5, 0);
 	}
 
 	draw_fill_chars(23, 30, 24, 39, DEFAULT_FG, 0);
