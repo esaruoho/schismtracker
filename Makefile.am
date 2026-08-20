@@ -785,7 +785,14 @@ schismtracker_SOURCES += schism/link.c
 # own flags. Keeping the C++ in a library leaves schismtracker a C program.
 if USE_LINK
 noinst_LIBRARIES = libablink.a
-libablink_a_SOURCES = link/extensions/abl_link/src/abl_link.cpp
+# nodist_ because automake puts EVERY _SOURCES entry into DIST_SOURCES regardless of
+# the conditional it sits in, so "make dist" demanded this file even in a checkout
+# that has no submodule -- which is what CI does:
+#   No rule to make target 'link/extensions/abl_link/src/abl_link.cpp',
+#   needed by 'distdir-am'
+# The submodule is not part of the source tarball anyway; --enable-link is for a git
+# checkout with submodules initialised.
+nodist_libablink_a_SOURCES = link/extensions/abl_link/src/abl_link.cpp
 libablink_a_CXXFLAGS = @LINK_CXXSTD@ @LINK_CPPFLAGS@ -I$(srcdir)/include
 libablink_a_CPPFLAGS = @LINK_CPPFLAGS@ -I$(srcdir)/include
 LINK_ARCHIVE = libablink.a
