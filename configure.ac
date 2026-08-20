@@ -478,34 +478,73 @@ dnl Some weird, backwards platforms do not understand "%zu", so we have to
 dnl map it to something that will probably work everywhere.
 
 AC_CHECK_SIZEOF([size_t])
+AC_MSG_CHECKING([for size_t format specifier])
 
-case "x$ac_cv_sizeof_size_t" in
-x1*)
-	AC_DEFINE([PRIuSZ], [PRIu8], [ ])
-	AC_DEFINE([PRIxSZ], [PRIx8], [ ])
-	AC_DEFINE([PRIXSZ], [PRIX8], [ ])
-	;;
-x2*)
-	AC_DEFINE([PRIuSZ], [PRIu16], [ ])
-	AC_DEFINE([PRIxSZ], [PRIx16], [ ])
-	AC_DEFINE([PRIXSZ], [PRIX16], [ ])
-	;;
-x4*)
-	AC_DEFINE([PRIuSZ], [PRIu32], [ ])
-	AC_DEFINE([PRIxSZ], [PRIx32], [ ])
-	AC_DEFINE([PRIXSZ], [PRIX32], [ ])
-	;;
-x8*)
-	AC_DEFINE([PRIuSZ], [PRIu64], [ ])
-	AC_DEFINE([PRIxSZ], [PRIx64], [ ])
-	AC_DEFINE([PRIXSZ], [PRIX64], [ ])
-	;;
-*)
-	AC_DEFINE([PRIuSZ], ["zu"], [ ])
-	AC_DEFINE([PRIxSZ], ["zx"], [ ])
-	AC_DEFINE([PRIXSZ], ["zX"], [ ])
-	;;
-esac
+# SCHISM_CHECK_SPECIFIER(OUTPUT, SPECIFIER, TYPE)
+# -----------------------------------------------
+AC_DEFUN([SCHISM_CHECK_SPECIFIER], [
+	old_CFLAGS="$CFLAGS"
+	CFLAGS="$old_CFLAGS -Werror=format"
+
+	AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+		#include <stdio.h>
+
+		int main(void) { printf("%$2u\n", ($3)1); return 0; }
+	]])], [$1=$2], [:])
+
+	CFLAGS="$old_CFLAGS"
+])
+
+dnl Do an initial test to make sure -Werror fails on an
+dnl invalid type
+test_werror_format=
+SCHISM_CHECK_SPECIFIER([test_werror_format], [ll], [unsigned int])
+
+size_t_specifier=
+if test "x$test_werror_format" = "x"; then
+	dnl unsigned int
+	SCHISM_CHECK_SPECIFIER([size_t_specifier], [], [size_t])
+	dnl unsigned long
+	SCHISM_CHECK_SPECIFIER([size_t_specifier], [l], [size_t])
+	dnl unsigned long long
+	SCHISM_CHECK_SPECIFIER([size_t_specifier], [ll], [size_t])
+fi
+
+if test "x$size_t_specifier" = "x"; then
+	# guess
+	if test "x$ac_cv_sizeof_size_t" = "x1"; then
+		AC_MSG_RESULT([PRIu8])
+		AC_DEFINE([PRIuSZ], [PRIu8], [ ])
+		AC_DEFINE([PRIxSZ], [PRIx8], [ ])
+		AC_DEFINE([PRIXSZ], [PRIX8], [ ])
+	elif test "x$ac_cv_sizeof_size_t" = "x2"; then
+		AC_MSG_RESULT([PRIu16])
+		AC_DEFINE([PRIuSZ], [PRIu16], [ ])
+		AC_DEFINE([PRIxSZ], [PRIx16], [ ])
+		AC_DEFINE([PRIXSZ], [PRIX16], [ ])
+	elif test "x$ac_cv_sizeof_size_t" = "x4"; then
+		AC_MSG_RESULT([PRIu32])
+		AC_DEFINE([PRIuSZ], [PRIu32], [ ])
+		AC_DEFINE([PRIxSZ], [PRIx32], [ ])
+		AC_DEFINE([PRIXSZ], [PRIX32], [ ])
+	elif test "x$ac_cv_sizeof_size_t" = "x8"; then
+		AC_MSG_RESULT([PRIu64])
+		AC_DEFINE([PRIuSZ], [PRIu64], [ ])
+		AC_DEFINE([PRIxSZ], [PRIx64], [ ])
+		AC_DEFINE([PRIXSZ], [PRIX64], [ ])
+	else
+		AC_MSG_RESULT([zu])
+		AC_DEFINE([PRIuSZ], ["zu"], [ ])
+		AC_DEFINE([PRIxSZ], ["zx"], [ ])
+		AC_DEFINE([PRIXSZ], ["zX"], [ ])
+	fi
+else
+	AC_MSG_RESULT([$size_t_specifier])
+
+	AC_DEFINE_UNQUOTED([PRIuSZ], ["${size_t_specifier}u"])
+	AC_DEFINE_UNQUOTED([PRIxSZ], ["${size_t_specifier}x"])
+	AC_DEFINE_UNQUOTED([PRIXSZ], ["${size_t_specifier}X"])
+fi
 
 dnl -----------------------------------------------------------------------
 dnl Retrieve size of floating point numbers. This is later used to bypass
@@ -1172,8 +1211,83 @@ SCHISM_CHECK_COMPILE_FLAG([-Werror=write-strings])
 SCHISM_CHECK_COMPILE_FLAG([-Werror=restrict])
 SCHISM_CHECK_COMPILE_FLAG([-Werror=overlength-strings])
 
-dnl disable this for now, clang's implementation is incorrect  --paper
+dnl disable this for now; clang is very strict about this.
+dnl on windows in particular, functions return FARPROC, which
+dnl is a function pointer type; it is *intended* for these to
+dnl be converted to the type they actually are, but clang is none
+dnl the wiser, and throws an error for it anyway.
+dnl a workaround might be to cast to (void *) beforehand, but that
+dnl feels even more jank than just casting the pointer type in the
+dnl first place.
+dnl
 dnl SCHISM_CHECK_COMPILE_FLAG([-Werror=cast-function-type])
+
+# SCHISM_CHECK_ATOMIC(NAME, PROGRAM, DEFINE, DEFINEDESC, USERFRIENDLYNAME)
+# ------------------------------------------------------------------------
+AC_DEFUN([SCHISM_CHECK_ATOMIC], [
+	AC_MSG_CHECKING([for $5 atomics])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([[
+		#ifdef HAVE_STDINT_H
+		#include <stdint.h>
+		#endif
+
+		$2
+	]])], [haveit=yes], [haveit=no])
+	AC_MSG_RESULT([$haveit])
+
+	if test "x$haveit" = "xyes"; then
+		AC_DEFINE($3, 1, $4)
+	fi
+])
+
+# SCHISM_CHECK_C11_ATOMICS(SIZE)
+# ------------------------------
+AC_DEFUN([SCHISM_CHECK_C11_ATOMICS], [
+	SCHISM_CHECK_ATOMIC([C11_$1], [
+		#include <stdatomic.h>
+
+		int main(int argc, char **argv)
+		{
+			_Atomic volatile int$1_t x;
+			atomic_store(&x, 0);
+			return atomic_fetch_add(&x, argc);
+		}
+	], [HAVE_C11_$1_ATOMICS], [$1-bit C11 atomics support (atomic_fetch_add)], [C11 $1-bit])
+])
+
+SCHISM_CHECK_C11_ATOMICS([32])
+SCHISM_CHECK_C11_ATOMICS([64])
+
+# SCHISM_CHECK_GCC47_ATOMICS(SIZE)
+# --------------------------------
+AC_DEFUN([SCHISM_CHECK_GCC47_ATOMICS], [
+	SCHISM_CHECK_ATOMIC([GCC47_$1], [
+		int main(int argc, char **argv)
+		{
+			volatile int$1_t x = 0;
+			return __atomic_fetch_add(&x, argc, __ATOMIC_SEQ_CST);
+		}
+	], [HAVE_GCC47_$1_ATOMICS], [$1-bit GCC 4.7 atomics support (__atomic_fetch_add)], [GCC 4.7 $1-bit])
+])
+
+SCHISM_CHECK_GCC47_ATOMICS([32])
+SCHISM_CHECK_GCC47_ATOMICS([64])
+
+# SCHISM_CHECK_GCC41_ATOMICS(SIZE)
+# --------------------------------
+AC_DEFUN([SCHISM_CHECK_GCC41_ATOMICS], [
+	SCHISM_CHECK_ATOMIC([GCC41_$1], [
+		int main(int argc, char **argv)
+		{
+			volatile int$1_t x = 0;
+			return __sync_fetch_and_add(&x, argc);
+		}
+	], [HAVE_GCC41_$1_ATOMICS], [$1-bit GCC 4.1 atomics support (__sync_fetch_and_add)], [GCC 4.1 $1-bit])
+])
+
+SCHISM_CHECK_GCC41_ATOMICS([32])
+SCHISM_CHECK_GCC41_ATOMICS([64])
 
 dnl --------------------------------------------------------------------------
 dnl check for a target. TARGET is what to pass to the compiler, and NAME is

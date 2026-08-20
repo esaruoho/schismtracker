@@ -78,9 +78,11 @@ static testresult_t test_slurp_common(slurp_t *fp)
 
 	for (i = 0; i < 5; i++) {
 		size_t x;
+		int64_t y;
 		x = slurp_read(fp, buf, sizeof(buf));
 		ASSERT_PRINTF(x == 0, "%" PRIuSZ, x);
-		ASSERT(slurp_tell(fp) == sizeof(buf));
+		y = slurp_tell(fp);
+		ASSERT_PRINTF(y == sizeof(buf), "%" PRId64, y);
 		ASSERT(slurp_eof(fp));
 	}
 
@@ -170,6 +172,23 @@ static testresult_t test_slurp_common(slurp_t *fp)
 	ASSERT(!slurp_eof(fp));
 
 	RETURN_PASS;
+}
+
+testresult_t test_slurp(void)
+{
+	slurp_t fp;
+	char tmp[TEST_TEMP_FILE_NAME_LENGTH];
+	testresult_t r;
+
+	REQUIRE(test_temp_file(tmp, expected_result, ARRAY_SIZE(expected_result) - 1));
+
+	REQUIRE(slurp(&fp, tmp, NULL, 0) == 0);
+
+	r = test_slurp_common(&fp);
+
+	unslurp(&fp);
+
+	return r;
 }
 
 testresult_t test_slurp_memstream(void)

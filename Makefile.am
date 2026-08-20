@@ -831,9 +831,11 @@ schismtrackertest_SOURCES = \
 	test/index.c                \
 	test/tempfile.c             \
 	test/vmem.c					\
+	test/cases/atomic.c			\
 	test/cases/bits.c           \
 	test/cases/config-parser.c  \
 	test/cases/disko.c			\
+	test/cases/iff.c            \
 	test/cases/mplink.c         \
 	test/cases/sanity.c			\
 	test/cases/slurp.c          \
