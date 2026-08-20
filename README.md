@@ -38,6 +38,61 @@ See the
 [docs/](https://github.com/schismtracker/schismtracker/tree/master/docs) folder
 for platform-specific instructions.
 
+```sh
+./configure && make
+```
+
+A plain `git clone` is enough for that. This fork carries the Ableton Link sources
+as a git submodule, but nothing needs it unless you ask for Link — see below.
+
+### Ableton Link + Link Audio (this fork)
+
+Off by default, at two levels: it is not compiled in unless you ask, and even then it
+is switched off until you turn it on in the program.
+
+```sh
+git clone --recurse-submodules https://github.com/esaruoho/schismtracker.git
+# or, in a clone you already have:
+git submodule update --init --recursive
+
+./configure --enable-link
+make
+```
+
+`--enable-link` needs a C++17 compiler and the `link/` submodule. Link supports
+Windows, macOS and Linux only, which is why it is opt-in: the wii, wiiu, xbox, os2
+and dos targets have to keep building, and a default build contains no Link code at
+all.
+
+Once built in, turn it on in the program on the **MIDI page (Shift-F1)**:
+
+- **Ableton Link** — join the session: follow its tempo, and share transport
+  start/stop in both directions.
+- **Link Audio out** — additionally publish this instance's output as a Link Audio
+  channel named "Schism Tracker", which other Link Audio software (e.g. Ableton Live
+  12.4+) can listen to and record.
+
+The bottom of that page reports the peer count, the session tempo, and whether audio
+is actually being sent, so you can see it working. Both switches persist in the
+config as `link_flags` under `[MIDI]`.
+
+Notes from getting it working against Live 12.4.3:
+
+- In Live: Settings → Link → **Audio: On**, and set the track's **Audio From** to
+  the "Schism Tracker" channel with **Monitor: In**.
+- If the recording comes out silent, **raise Live's Link Audio latency** — the
+  default receive buffer can be too tight.
+- Live's "Sync to Incoming Audio" belongs on the *receiving* side; Live's own tooltip
+  says peers must have it **Off**, and this fork is a pure sender, so there is
+  nothing to set here.
+- Ableton Link is dual-licensed GPLv2+ / proprietary, so it is compatible with
+  Schism's GPLv2.
+
+What works: tempo follow, transport both ways, and audio into Live. What does not yet:
+bar/phase lock (the tempo matches, but schism is not put on the downbeat with its
+peers), and receiving Link Audio rather than only sending. See
+[features/ableton-link.feature](features/ableton-link.feature).
+
 ## Packaging status
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/schismtracker.svg)](https://repology.org/project/schismtracker/versions)
