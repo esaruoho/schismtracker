@@ -128,6 +128,7 @@ noinst_HEADERS = \
 	include/keyboard.h      \
 	include/log.h			\
 	include/loadso.h        \
+	include/link.h			\
 	include/midi.h			\
 	include/mem.h           \
 	include/osdefs.h		\
