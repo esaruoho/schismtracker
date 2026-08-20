@@ -776,17 +776,31 @@ component_cflags = $(cflags_alsa) $(cflags_oss) \
 # unconditional, so leaving it out of a default build breaks the link.
 schismtracker_SOURCES += schism/link.c
 
+# Link's own C wrapper is the only C++ in the project, and it lives in a separate
+# convenience library ON PURPOSE. Automake picks a program's linker from the
+# extensions in that program's OWN source list, statically -- so naming a .cpp in
+# schismtracker_SOURCES made it link everything with $(CXX) even in configurations
+# where Link was disabled and no C++ compiler existed. That broke the OS/2 and XBOX
+# builds: AC_PROG_CXX fell back to plain g++, which then rejected the OS/2 toolchain's
+# own flags. Keeping the C++ in a library leaves schismtracker a C program.
 if USE_LINK
-# Link's own C wrapper -- the only C++ translation unit in the project.
-schismtracker_SOURCES += link/extensions/abl_link/src/abl_link.cpp
-schismtracker_CXXFLAGS = $(AM_CXXFLAGS) @LINK_CXXSTD@ @LINK_CPPFLAGS@ -I$(srcdir)/include
+noinst_LIBRARIES = libablink.a
+libablink_a_SOURCES = link/extensions/abl_link/src/abl_link.cpp
+libablink_a_CXXFLAGS = @LINK_CXXSTD@ @LINK_CPPFLAGS@ -I$(srcdir)/include
+libablink_a_CPPFLAGS = @LINK_CPPFLAGS@ -I$(srcdir)/include
+LINK_ARCHIVE = libablink.a
+else
+LINK_ARCHIVE =
 endif
 
 schismtracker_CPPFLAGS = -I$(srcdir)/include -I. $(cppflags_wii) $(cppflags_wiiu) @LINK_CPPFLAGS@
 schismtracker_CFLAGS = $(AM_CFLAGS) $(component_cflags)
 schismtracker_OBJCFLAGS = $(AM_OBJCFLAGS) $(component_cflags)
 
-schismtracker_DEPENDENCIES = $(files_windres)
+# $(LINK_ARCHIVE) has to be named here as well: automake cannot see through a
+# variable in LDADD, so without this the program could try to link before the
+# convenience library had been built.
+schismtracker_DEPENDENCIES = $(files_windres) $(LINK_ARCHIVE)
 schismtracker_LDADD = $(LIBM) $(libs_sdl3) \
 	$(libs_x11) $(libs_wii) $(libs_wiiu) \
 	$(libs_jack) $(libs_macosx) $(lib_asound) \
@@ -797,7 +811,7 @@ schismtracker_LDADD = $(LIBM) $(libs_sdl3) \
 	$(libs_os2) $(libs_xbox) $(libs_avformat) \
 	$(libs_asio) $(libs_zlib) $(libs_bzip2) \
 	$(libs_lzma) $(libs_zstd) \
-	@LINK_LIBS@
+	$(LINK_ARCHIVE) @LINK_LIBS@
 schismtracker_LDFLAGS = $(ldflags_macosx) \
 	$(ldflags_wii)
 

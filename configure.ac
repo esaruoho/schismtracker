@@ -311,6 +311,8 @@ dnl AC_PROG_CXX must be unconditional: automake defines am__fastdepCXX from it,
 dnl and refuses to generate a Makefile if it was only reached inside an if. It only
 dnl DETECTS a C++ compiler -- nothing C++ is compiled unless --enable-link.
 AC_PROG_CXX
+AM_PROG_AR
+AC_PROG_RANLIB
 
 if test "x$enable_link" = "xyes"; then
 	dnl Plain compile test rather than AX_CHECK_COMPILE_FLAG -- this tree does
@@ -335,17 +337,20 @@ if test "x$enable_link" = "xyes"; then
 		AC_MSG_ERROR([*** link/modules/asio-standalone is empty -- run: git submodule update --init --recursive])
 	fi
 
+	dnl schismtracker is linked by the C compiler (see Makefile.am), so the C++
+	dnl runtime has to be named here rather than being pulled in implicitly.
 	case "$host" in
 		*-*-darwin*)
 			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_MACOSX=1"
+			LINK_LIBS="-lc++"
 			;;
 		*-*-mingw*|*-*-cygwin*|*-*-windows*)
 			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_WINDOWS=1"
-			LINK_LIBS="-lws2_32 -liphlpapi"
+			LINK_LIBS="-lstdc++ -lws2_32 -liphlpapi"
 			;;
 		*)
 			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_LINUX=1 -DLINK_PLATFORM_UNIX=1"
-			LINK_LIBS="-lpthread"
+			LINK_LIBS="-lstdc++ -lpthread"
 			;;
 	esac
 
