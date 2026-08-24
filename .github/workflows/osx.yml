@@ -347,8 +347,13 @@ jobs:
           (export PATH="$PATH:$HOME/ppc/usr/bin" && export PKG_CONFIG_PATH="$HOME/ppcprefix/lib/pkgconfig" && mkdir build_ppc7400 && cd build_ppc7400 && ../configure CC=powerpc-apple-darwin10-gcc-4.2.1 CPP=powerpc-apple-darwin10-cpp-4.2.1 OBJC=powerpc-apple-darwin10-gcc-4.2.1 CXX=powerpc-apple-darwin10-g++-4.2.1 CPPFLAGS="-I$HOME/ppc/SDKs/MacOSX10.4u.sdk/usr/include/gcc/darwin/3.3 -isysroot $HOME/ppc/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4" CFLAGS="-mcpu=G4 -O2 -ftree-vectorize" LDFLAGS="-F$HOME/ppc/SDKs/MacOSX10.4u.sdk/System/Library/Frameworks -L/usr/lib -L/usr/lib/system -Wl,-syslibroot,$HOME/ppc/SDKs/MacOSX10.4u.sdk -static-libgcc $HOME/ppc/SDKs/MacOSX10.5.sdk/usr/lib/gcc/powerpc-apple-darwin10/4.2.1/libgcc.a" SDL12_CFLAGS="-I$HOME/ppcprefix/include/SDL" SDL12_LIBS="-L$HOME/ppcprefix/lib -lSDL" --host=powerpc-apple-darwin10 --prefix="$HOME/ppcprefix" --with-flac --with-sdl12 --enable-flac-linking --enable-sdl12-linking --without-sdl2 && make && strip -S schismtracker) &
           (export MACOSX_DEPLOYMENT_TARGET="10.7" && export PKG_CONFIG_PATH="$HOME/x86_64prefix/lib/pkgconfig" && mkdir build_x86_64 && cd build_x86_64 && ../configure CPPFLAGS="-arch x86_64 -isysroot $HOME/x86_64/SDKs/MacOSX10.11.sdk" CFLAGS="-arch x86_64" CXXFLAGS="-arch x86_64" LDFLAGS="-arch x86_64 -F$HOME/x86_64/SDKs/MacOSX10.11.sdk/System/Library/Frameworks -L/usr/lib -L/usr/lib/system -Wl,-syslibroot,$HOME/x86_64/SDKs/MacOSX10.11.sdk" --host=x86_64-apple-darwin13 --prefix="$HOME/x86_64prefix" --with-sdl-prefix="$HOME/x86_64prefix" --with-flac --without-sdl12 --enable-flac-linking --enable-sdl2-linking && make && strip -S schismtracker) &
           (export MACOSX_DEPLOYMENT_TARGET="11.0" && export PKG_CONFIG_PATH="$HOME/arm64prefix/lib/pkgconfig" && mkdir build_arm64 && cd build_arm64 && ../configure CPPFLAGS="-arch arm64 -isysroot $HOME/arm64/SDKs/MacOSX11.0.sdk" OBJCFLAGS="-arch arm64" CFLAGS="-arch arm64" CXXFLAGS="-arch arm64" LDFLAGS="-arch arm64" --host=aarch64-apple-darwin20 --prefix="$HOME/arm64prefix" --with-sdl-prefix="$HOME/arm64prefix" --with-flac --without-sdl12 --enable-flac-linking --enable-sdl2-linking --enable-link && make && strip -S schismtracker) &
+          # Intel targeting 10.14 (Mojave), with Link. Deliberately no -isysroot:
+          # the runner's own SDK is used so libc++ actually has <optional>, which
+          # Link needs and which is availability-gated at 10.14. The 10.7 slice
+          # above stays Link-free so old Intel Macs keep working.
+          (export MACOSX_DEPLOYMENT_TARGET="10.14" && export PKG_CONFIG_PATH="$HOME/x86_64prefix/lib/pkgconfig" && mkdir build_x86_64_link && cd build_x86_64_link && ../configure CPPFLAGS="-arch x86_64" CFLAGS="-arch x86_64" CXXFLAGS="-arch x86_64" LDFLAGS="-arch x86_64" --host=x86_64-apple-darwin18 --prefix="$HOME/x86_64prefix" --with-sdl-prefix="$HOME/x86_64prefix" --with-flac --without-sdl12 --enable-flac-linking --enable-sdl2-linking --enable-link && make && strip -S schismtracker) &
           wait || {
-            for d in build_powerpc build_ppc7400 build_x86_64 build_arm64; do
+            for d in build_powerpc build_ppc7400 build_x86_64 build_x86_64_link build_arm64; do
               echo "===== $d/config.log (last 120 lines) ====="
               tail -120 "$d/config.log" 2>/dev/null || echo "(no config.log)"
             done
@@ -365,17 +370,20 @@ jobs:
             "$HOME/ppc/usr/bin/install_name_tool" -change "$HOME/ppcprefix/lib/lib${i}.dylib" @executable_path/../Resources/lib${i}.dylib build_powerpc/schismtracker
             "$HOME/ppc/usr/bin/install_name_tool" -change "$HOME/ppcprefix/lib/lib${i}.dylib" @executable_path/../Resources/lib${i}.dylib build_ppc7400/schismtracker
             install_name_tool -change "$HOME/x86_64prefix/lib/lib${i}.dylib" @executable_path/../Resources/lib${i}.dylib build_x86_64/schismtracker
+            install_name_tool -change "$HOME/x86_64prefix/lib/lib${i}.dylib" @executable_path/../Resources/lib${i}.dylib build_x86_64_link/schismtracker
             install_name_tool -change "$HOME/arm64prefix/lib/lib${i}.dylib" @executable_path/../Resources/lib${i}.dylib build_arm64/schismtracker
           done
 
           "$HOME/ppc/usr/bin/install_name_tool" -change "@rpath/SDL.framework/Versions/A/SDL" "@executable_path/../Resources/libSDL-1.2.0.dylib" build_powerpc/schismtracker
           "$HOME/ppc/usr/bin/install_name_tool" -change "@rpath/SDL.framework/Versions/A/SDL" "@executable_path/../Resources/libSDL-1.2.0.dylib" build_ppc7400/schismtracker
           install_name_tool -change "$HOME/x86_64prefix/lib/libSDL2-2.0.0.dylib" @executable_path/../Resources/libSDL2-2.0.0.dylib build_x86_64/schismtracker
+          install_name_tool -change "$HOME/x86_64prefix/lib/libSDL2-2.0.0.dylib" @executable_path/../Resources/libSDL2-2.0.0.dylib build_x86_64_link/schismtracker
           install_name_tool -change "$HOME/arm64prefix/lib/libSDL2-2.0.0.dylib" @executable_path/../Resources/libSDL2-2.0.0.dylib build_arm64/schismtracker
 
           "$HOME/ppc/usr/bin/install_name_tool" -change "$HOME/ppcprefix/lib/libutf8proc.3.dylib" @executable_path/../Resources/libutf8proc.3.dylib build_powerpc/schismtracker
           "$HOME/ppc/usr/bin/install_name_tool" -change "$HOME/ppcprefix/lib/libutf8proc.3.dylib" @executable_path/../Resources/libutf8proc.3.dylib build_ppc7400/schismtracker
           install_name_tool -change "@rpath/libutf8proc.3.dylib" @executable_path/../Resources/libutf8proc.3.dylib build_x86_64/schismtracker
+          install_name_tool -change "@rpath/libutf8proc.3.dylib" @executable_path/../Resources/libutf8proc.3.dylib build_x86_64_link/schismtracker
           install_name_tool -change "@rpath/libutf8proc.3.dylib" @executable_path/../Resources/libutf8proc.3.dylib build_arm64/schismtracker
 
           "$HOME/ppc/usr/bin/install_name_tool" -change "$HOME/ppcprefix/lib/libogg.0.dylib" @executable_path/../Resources/libogg.0.dylib "$HOME/ppcprefix/lib/libFLAC.14.dylib"
@@ -399,11 +407,26 @@ jobs:
           wget https://raw.githubusercontent.com/xiph/flac/master/COPYING.Xiph
           zip -r schismtracker.zip configuration.md COPYING COPYING.Xiph README.md Schism\ Tracker.app
 
+          # Second bundle: Intel 10.14+ and Apple Silicon, both slices with Link.
+          # Reuses the Resources built above; only the executable differs.
+          lipo -create -o schismtracker-link build_x86_64_link/schismtracker build_arm64/schismtracker
+          mkdir -p linkpkg
+          cp -r sys/macosx/Schism_Tracker.app "linkpkg/Schism Tracker.app"
+          cp schismtracker-link "linkpkg/Schism Tracker.app/Contents/MacOS/schismtracker"
+          cp configuration.md COPYING COPYING.Xiph README.md linkpkg/
+          (cd linkpkg && zip -r ../schismtracker-link.zip configuration.md COPYING COPYING.Xiph README.md "Schism Tracker.app")
+
       - name: 'Upload artifact'
         uses: actions/upload-artifact@v4
         with:
           name: schismtracker-${{ steps.date.outputs.date }}-macos
           path: schismtracker.zip
+
+      - name: 'Upload artifact (Link, 10.14+)'
+        uses: actions/upload-artifact@v4
+        with:
+          name: schismtracker-${{ steps.date.outputs.date }}-macos-link
+          path: schismtracker-link.zip
 
       - name: 'Attach to GitHub release'
         # Only on a tag push. Each platform job attaches its own asset to the
@@ -415,9 +438,11 @@ jobs:
           set -eu
           asset='schismtracker-${{ steps.date.outputs.date }}-macos.zip'
           mv 'schismtracker.zip' "$asset"
+          link_asset='schismtracker-${{ steps.date.outputs.date }}-macos-10.14-link.zip'
+          mv 'schismtracker-link.zip' "$link_asset"
           gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
             --notes 'Automated build.' --verify-tag || true
-          gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
+          gh release upload "$GITHUB_REF_NAME" "$asset" "$link_asset" --clobber
 
 # Run test suite; based off code written by manx for OpenMPT.
 # sidenote: we should probably (definitely) be using matrixes for the
