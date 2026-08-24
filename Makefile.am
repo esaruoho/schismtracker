@@ -87,6 +87,9 @@ scripts = \
 	scripts/palette.py
 
 EXTRA_DIST = \
+	sys/mingw/case-compat/Windows.h				\
+	sys/mingw/case-compat/WinSock2.h				\
+	sys/mingw/case-compat/WS2tcpip.h				\
 	README.md include/auto/README	\
 	$(docs)	\
 	$(helptexts)			\

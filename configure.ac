@@ -391,6 +391,19 @@ _SCHISM_CXXLIB_EOF
 	LINK_LIBS="$LINK_CXXLIB $LINK_SYSLIBS"
 
 	LINK_CPPFLAGS="-I\$(top_srcdir)/link/include -I\$(top_srcdir)/link/extensions/abl_link/include -I\$(top_srcdir)/link/modules/asio-standalone/asio/include -DASIO_STANDALONE=1 $LINK_PLATFORM_DEFINE"
+
+	dnl Link includes <Windows.h>, <WinSock2.h> and <WS2tcpip.h> with Windows'
+	dnl capitalisation. That resolves on a case-insensitive filesystem, but
+	dnl cross-compiling for mingw from Linux those headers are lowercase and
+	dnl the build stops at "'WS2tcpip.h' file not found". Put forwarding shims
+	dnl on the include path -- but only when the capitalised spelling really is
+	dnl missing, so a native Windows build is left alone.
+	case "$host" in
+		*-*-mingw*|*-*-cygwin*|*-*-windows*)
+			AC_CHECK_HEADER([WS2tcpip.h], [],
+				[LINK_CPPFLAGS="$LINK_CPPFLAGS -I\$(top_srcdir)/sys/mingw/case-compat"])
+			;;
+	esac
 	AC_DEFINE([USE_LINK], [1], [Define if Ableton Link support is built in])
 	AC_MSG_NOTICE([Ableton Link + Link Audio: enabled])
 fi
