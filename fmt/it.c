@@ -37,6 +37,8 @@
 /* --------------------------------------------------------------------- */
 
 #define IT_CHANNELS 64
+#define IT_ESARUOHO_CWTV 0x2354
+#define IT_EXTENDED_PATTERN_LENGTH UINT16_MAX
 
 #if IT_CHANNELS != MAX_CHANNELS
 # error The code currently assumes IT_CHANNELS == MAX_CHANNELS. If they need to differ, then many assumptions will need to be rewritten. IT files always have 64 channels.
@@ -591,7 +593,10 @@ int fmt_it_load_song(song_t *song, slurp_t *fp, uint32_t lflags)
 			song->pattern_size[n] = song->pattern_alloc_size[n] = rows;
 			load_it_pattern(song->patterns[n], fp, rows, hdr.cwtv);
 			got = slurp_tell(fp) - para_pat[n] - 8;
-			if (bytes != got)
+			if (bytes != got
+				&& !(hdr.cwtv == IT_ESARUOHO_CWTV
+					&& bytes == IT_EXTENDED_PATTERN_LENGTH
+					&& got >= IT_EXTENDED_PATTERN_LENGTH))
 				log_appendf(4, " Warning: Pattern %d: size mismatch"
 					" (expected %d bytes, got %lu)",
 					n, bytes, (unsigned long) got);
@@ -603,6 +608,8 @@ int fmt_it_load_song(song_t *song, slurp_t *fp, uint32_t lflags)
 
 	if (tid) {
 		// BeroTracker (detected above)
+	} else if (hdr.cwtv == IT_ESARUOHO_CWTV) {
+		tid = "Schism Tracker esa fork 2.354";
 	} else if ((hdr.cwtv >> 12) == 1) {
 		tid = NULL;
 		strcpy(song->tracker_id, "Schism Tracker ");
@@ -773,14 +780,14 @@ int fmt_it_load_song(song_t *song, slurp_t *fp, uint32_t lflags)
 
 enum {
 	WARN_ADLIB,
-	WARN_PATTERNTRUNC,
+	WARN_EXTENDEDPATTERN,
 
 	MAX_WARN,
 };
 
 const char *it_warnings[] = {
 	[WARN_ADLIB] = "AdLib samples",
-	[WARN_PATTERNTRUNC] = "Patterns too dense to pack (rows dropped)",
+	[WARN_EXTENDEDPATTERN] = "extended packed patterns",
 };
 
 /* Worst case a single row can pack to: every channel writing
@@ -800,14 +807,12 @@ static void save_it_pattern(disko_t *fp, song_note_t *pat, int patsize, uint32_t
 	 * maximum could run past the end of it; with longer patterns allowed it
 	 * certainly would. Size for the worst case and track the cursor wide. */
 	size_t pos = 0;
-	size_t rowstart;
 	int rows_out = 0;
 	uint8_t *data = mem_alloc(((size_t)patsize * IT_PACKED_ROW_MAX) + 1);
 
 	memset(lastmask, 0xff, IT_CHANNELS);
 
 	for (int row = 0; row < patsize; row++) {
-		rowstart = pos;
 		for (int chan = 0; chan < IT_CHANNELS; chan++, noteptr++) {
 			uint8_t m = 0;  // current mask
 			int vol = -1;
@@ -895,23 +900,15 @@ static void save_it_pattern(disko_t *fp, song_note_t *pat, int patsize, uint32_t
 			if (m & 8) { data[pos++] = effect; data[pos++] = param; }
 		} // end channel
 		data[pos++] = 0;
-
-		/* The pattern header stores the packed length in 16 bits, so anything
-		 * past 65535 cannot be represented. Drop back to the last whole row
-		 * that fits rather than writing a length that wraps. */
-		if (pos > 65535) {
-			pos = rowstart;
-			break;
-		}
 		rows_out++;
 	} // end row
 
-	if (rows_out < patsize)
-		*warn |= (1 << WARN_PATTERNTRUNC);
+	if (pos > IT_EXTENDED_PATTERN_LENGTH)
+		*warn |= (1 << WARN_EXTENDEDPATTERN);
 
 	// write the data to the file (finally!)
 	uint16_t h[4] = {0};
-	h[0] = bswapLE16((uint16_t)pos);
+	h[0] = bswapLE16((uint16_t)MIN(pos, IT_EXTENDED_PATTERN_LENGTH));
 	h[1] = bswapLE16((uint16_t)rows_out);
 	// h[2] and h[3] are meaningless
 	disko_write(fp, &h, 8);
@@ -959,26 +956,8 @@ int fmt_it_save_song(disko_t *fp, song_t *song)
 	hdr.insnum = bswapLE16(nins);
 	hdr.smpnum = bswapLE16(nsmp);
 	hdr.patnum = bswapLE16(npat);
-	// No one else seems to be using the cwtv's tracker id number, so I'm gonna take 1. :)
-	hdr.cwtv = bswapLE16(0x1000 | ver_cwtv); // cwtv 0xtxyy = tracker id t, version x.yy
-	// compat:
-	//     really simple IT files = 1.00 (when?)
-	//     "normal" = 2.00
-	//     vol col effects = 2.08
-	//     pitch wheel depth = 2.13
-	//     embedded midi config = 2.13
-	//     row highlight = 2.13 (doesn't necessarily affect cmwt)
-	//     compressed samples = 2.14
-	//     instrument filters = 2.17
-	hdr.cmwt = bswapLE16(0x0214);   // compatible with IT 2.14
-	for (n = 1; n < nins; n++) {
-		song_instrument_t *i = song->instruments[n];
-		if (!i) continue;
-		if (i->flags & ENV_FILTER) {
-			hdr.cmwt = bswapLE16(0x0217);
-			break;
-		}
-	}
+	hdr.cwtv = bswapLE16(IT_ESARUOHO_CWTV);
+	hdr.cmwt = bswapLE16(IT_ESARUOHO_CWTV);
 
 	hdr.flags = 0;
 	hdr.special = 2 | 4;            // 2 = edit history, 4 = row highlight
@@ -1127,9 +1106,15 @@ int fmt_it_save_song(disko_t *fp, song_t *song)
 			warn |= (1 << WARN_ADLIB);
 	}
 
-	for (size_t i = 0; i < ARRAY_SIZE(it_warnings); i++)
-		if (warn & (1 << i))
+	for (size_t i = 0; i < ARRAY_SIZE(it_warnings); i++) {
+		if (!(warn & (1 << i)))
+			continue;
+
+		if (i == WARN_EXTENDEDPATTERN)
+			log_appendf(4, " Warning: extended packed patterns saved in esa fork IT 2.354 format");
+		else
 			log_appendf(4, " Warning: %s unsupported in IT format", it_warnings[i]);
+	}
 
 	// rewrite the parapointers
 	disko_seek(fp, 0xc0 + nord, SEEK_SET);
