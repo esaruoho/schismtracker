@@ -797,8 +797,8 @@ noinst_LIBRARIES = libablink.a
 # The submodule is not part of the source tarball anyway; --enable-link is for a git
 # checkout with submodules initialised.
 nodist_libablink_a_SOURCES = link/extensions/abl_link/src/abl_link.cpp
-libablink_a_CXXFLAGS = @LINK_CXXSTD@ @LINK_CPPFLAGS@ -I$(srcdir)/include
-libablink_a_CPPFLAGS = @LINK_CPPFLAGS@ -I$(srcdir)/include
+libablink_a_CXXFLAGS = @LINK_CXXSTD@ @LINK_CPPFLAGS@ @LINK_WIN32_DEFINES@ -I$(srcdir)/include
+libablink_a_CPPFLAGS = @LINK_CPPFLAGS@ @LINK_WIN32_DEFINES@ -I$(srcdir)/include
 LINK_ARCHIVE = libablink.a
 else
 LINK_ARCHIVE =

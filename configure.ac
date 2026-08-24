@@ -402,12 +402,24 @@ _SCHISM_CXXLIB_EOF
 		*-*-mingw*|*-*-cygwin*|*-*-windows*)
 			AC_CHECK_HEADER([WS2tcpip.h], [],
 				[LINK_CPPFLAGS="$LINK_CPPFLAGS -I\$(top_srcdir)/sys/mingw/case-compat"])
+
+			dnl windows.h defines `interface' as a macro for `struct', and Link
+			dnl uses it as a parameter name (link_audio/Channels.hpp). The macro
+			dnl comes from objbase.h, which windows.h only pulls in via ole2.h
+			dnl when WIN32_LEAN_AND_MEAN is unset -- so set it. Undefining the
+			dnl macro in the case-compat shims is not enough on its own, because
+			dnl asio includes <windows.h> in lowercase and so never goes through
+			dnl them. NOMINMAX likewise keeps windef.h's min/max macros away from
+			dnl C++ headers. Both are confined to the one C++ translation unit we
+			dnl build; schism's own C is parsed exactly as before.
+			LINK_WIN32_DEFINES="-DWIN32_LEAN_AND_MEAN -DNOMINMAX"
 			;;
 	esac
 	AC_DEFINE([USE_LINK], [1], [Define if Ableton Link support is built in])
 	AC_MSG_NOTICE([Ableton Link + Link Audio: enabled])
 fi
 AC_SUBST([LINK_CPPFLAGS])
+AC_SUBST([LINK_WIN32_DEFINES])
 AC_SUBST([LINK_CXXSTD])
 AC_SUBST([LINK_LIBS])
 AM_CONDITIONAL([USE_LINK], [test "x$enable_link" = "xyes"])
