@@ -229,6 +229,8 @@ jobs:
             configuration.md
 
   build-others:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -261,6 +263,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: schism
+          # Ableton Link lives in link/; --enable-link fails without it
+          submodules: recursive
 
       - name: 'Install unix2dos'
         run: |
@@ -370,7 +374,7 @@ jobs:
           mkdir build
           cd build
           # Link to SDL2, since it's the only backend we support here
-          ../configure --host="$TARGET-w64-$SYS" --prefix="$HOME/prefix" --with-flac --with-sdl2 --without-zlib --enable-sdl2-linking
+          ../configure --host="$TARGET-w64-$SYS" --prefix="$HOME/prefix" --with-flac --with-sdl2 --without-zlib --enable-sdl2-linking --enable-link
           make
           "$TARGET-w64-$SYS-strip" -g schismtracker.exe
           cp schismtracker.exe ../..
@@ -401,6 +405,21 @@ jobs:
             COPYING.Xiph
             README.md
             configuration.md
+
+      - name: 'Attach to GitHub release'
+        # Only on a tag push. The Windows job produces loose files rather than a
+        # zip, so bundle them the same way the artifact does.
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          asset='schismtracker-${{ steps.date.outputs.date }}-${{ matrix.sys }}-${{ matrix.target }}.zip'
+          zip "$asset" schismtracker.exe SDL2.dll libFLAC-14.dll libogg-0.dll \
+            libwinpthread-1.dll COPYING COPYING.Xiph README.md configuration.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" \
+            --notes 'Automated build.' --verify-tag || true
+          gh release upload "$GITHUB_REF_NAME" "$asset" --clobber
 
   test:
     strategy:

@@ -337,22 +337,58 @@ if test "x$enable_link" = "xyes"; then
 		AC_MSG_ERROR([*** link/modules/asio-standalone is empty -- run: git submodule update --init --recursive])
 	fi
 
-	dnl schismtracker is linked by the C compiler (see Makefile.am), so the C++
-	dnl runtime has to be named here rather than being pulled in implicitly.
+	dnl Platform define, plus the system libraries Link's networking needs.
 	case "$host" in
 		*-*-darwin*)
 			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_MACOSX=1"
-			LINK_LIBS="-lc++"
+			LINK_SYSLIBS=""
 			;;
 		*-*-mingw*|*-*-cygwin*|*-*-windows*)
 			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_WINDOWS=1"
-			LINK_LIBS="-lstdc++ -lws2_32 -liphlpapi"
+			LINK_SYSLIBS="-lws2_32 -liphlpapi"
 			;;
 		*)
 			LINK_PLATFORM_DEFINE="-DLINK_PLATFORM_LINUX=1 -DLINK_PLATFORM_UNIX=1"
-			LINK_LIBS="-lstdc++ -lpthread"
+			LINK_SYSLIBS="-lpthread"
 			;;
 	esac
+
+	dnl schismtracker is linked by the C compiler (see Makefile.am), so the C++
+	dnl runtime has to be named here rather than being pulled in implicitly.
+	dnl Guessing it from $host is wrong as soon as the toolchain is not the one
+	dnl we assumed -- llvm-mingw, for one, ships libc++ where a mingw host would
+	dnl suggest libstdc++. So compile a real C++ translation unit with $CXX and
+	dnl find the runtime that lets $CC link it, which is what the build does.
+	AC_MSG_CHECKING([which C++ runtime lets $CC link $CXX objects])
+	cat > conftest_cxxlib.cpp <<'_SCHISM_CXXLIB_EOF'
+#include <string>
+extern "C" int schism_conftest_cxx(void);
+extern "C" int schism_conftest_cxx(void) { std::string s("x"); return (int)s.size() - 1; }
+_SCHISM_CXXLIB_EOF
+	LINK_CXXLIB=schism_no_cxxlib_found
+	if $CXX $CXXFLAGS $LINK_CXXSTD -c conftest_cxxlib.cpp -o conftest_cxxlib.$OBJEXT >&AS_MESSAGE_LOG_FD 2>&1; then
+		schism_saved_LIBS="$LIBS"
+		dnl The empty candidate goes last: prefer naming a runtime explicitly.
+		for schism_cxxlib in "-lc++" "-lstdc++" ""; do
+			LIBS="conftest_cxxlib.$OBJEXT $schism_cxxlib $LINK_SYSLIBS $schism_saved_LIBS"
+			AC_LINK_IFELSE([AC_LANG_PROGRAM([[extern int schism_conftest_cxx(void);]],
+				[[return schism_conftest_cxx();]])],
+				[LINK_CXXLIB="$schism_cxxlib"])
+			test "x$LINK_CXXLIB" != "xschism_no_cxxlib_found" && break
+		done
+		LIBS="$schism_saved_LIBS"
+	fi
+	rm -f conftest_cxxlib.cpp conftest_cxxlib.$OBJEXT
+	if test "x$LINK_CXXLIB" = "xschism_no_cxxlib_found"; then
+		AC_MSG_RESULT([none worked])
+		AC_MSG_ERROR([*** cannot link C++ objects into the C binary with this toolchain; configure without --enable-link])
+	elif test "x$LINK_CXXLIB" = "x"; then
+		AC_MSG_RESULT([none needed])
+	else
+		AC_MSG_RESULT([$LINK_CXXLIB])
+	fi
+
+	LINK_LIBS="$LINK_CXXLIB $LINK_SYSLIBS"
 
 	LINK_CPPFLAGS="-I\$(top_srcdir)/link/include -I\$(top_srcdir)/link/extensions/abl_link/include -I\$(top_srcdir)/link/modules/asio-standalone/asio/include -DASIO_STANDALONE=1 $LINK_PLATFORM_DEFINE"
 	AC_DEFINE([USE_LINK], [1], [Define if Ableton Link support is built in])
