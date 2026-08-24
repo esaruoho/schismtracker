@@ -49,6 +49,11 @@
 # ifdef __MINGW64_VERSION_MAJOR
 #  include <_mingw_off_t.h>
 # endif
+/* NO_OLDNAMES also hides mode_t, which include/util.h needs for the
+ * umask helpers. Pull in <sys/types.h> while the macro is still
+ * undefined so we get the toolchain's own typedef rather than
+ * guessing at its width. */
+# include <sys/types.h>
 /* Mingw-w64 */
 # undef NO_OLDNAMES
 # define NO_OLDNAMES
