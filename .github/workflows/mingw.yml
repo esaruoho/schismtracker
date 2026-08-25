@@ -365,6 +365,14 @@ jobs:
           echo "date=$(git log -n 1 --date=short --format=format:%cd | sed 's/\(....\)-\(..\)-\(..\).*/\1\2\3/')" >> $GITHUB_OUTPUT
           cd ..
 
+      - name: 'Which header defines the `interface` macro'
+        # Diagnostic only, never fails the job. If Link still trips over the
+        # macro, this says exactly which header to neutralise.
+        continue-on-error: true
+        run: |
+          grep -rn --include='*.h' -E '^[[:space:]]*#[[:space:]]*define[[:space:]]+interface([[:space:]]|$)' \
+            "$HOME/llvm-mingw/$TARGET-w64-$SYS/include" 2>/dev/null | head -20 || echo "(no match)"
+
       - name: 'Build package'
         run: |
           export PATH="$HOME/llvm-mingw/bin:$PATH"

@@ -87,6 +87,7 @@ scripts = \
 	scripts/palette.py
 
 EXTRA_DIST = \
+	sys/mingw/ablink-win32.cpp			\
 	sys/mingw/case-compat/Windows.h				\
 	sys/mingw/case-compat/WinSock2.h				\
 	sys/mingw/case-compat/WS2tcpip.h				\
@@ -796,7 +797,13 @@ noinst_LIBRARIES = libablink.a
 #   needed by 'distdir-am'
 # The submodule is not part of the source tarball anyway; --enable-link is for a git
 # checkout with submodules initialised.
+if LINK_WIN32
+# The wrapper #includes abl_link.cpp after neutralising windows.h's
+# `interface' macro -- see sys/mingw/ablink-win32.cpp.
+libablink_a_SOURCES = sys/mingw/ablink-win32.cpp
+else
 nodist_libablink_a_SOURCES = link/extensions/abl_link/src/abl_link.cpp
+endif
 libablink_a_CXXFLAGS = @LINK_CXXSTD@ @LINK_CPPFLAGS@ @LINK_WIN32_DEFINES@ -I$(srcdir)/include
 libablink_a_CPPFLAGS = @LINK_CPPFLAGS@ @LINK_WIN32_DEFINES@ -I$(srcdir)/include
 LINK_ARCHIVE = libablink.a

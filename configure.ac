@@ -423,6 +423,7 @@ AC_SUBST([LINK_WIN32_DEFINES])
 AC_SUBST([LINK_CXXSTD])
 AC_SUBST([LINK_LIBS])
 AM_CONDITIONAL([USE_LINK], [test "x$enable_link" = "xyes"])
+AM_CONDITIONAL([LINK_WIN32], [test "x$LINK_WIN32_DEFINES" != "x"])
 
 dnl We're using C
 AC_LANG([C])
