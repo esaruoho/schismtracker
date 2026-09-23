@@ -61,6 +61,12 @@ static SDL_Keycode (SDLCALL *sdl3_GetKeyFromScancode)(SDL_Scancode, SDL_Keymod, 
 #define SDLK_EXTENDED_MASK (1u << 29)
 #endif
 
+/* REPORT-CARD >> features/fast-sample-load.feature */
+static int sdl3_is_capslock_key_event(const SDL_Event *event)
+{
+	return event->key.scancode == SCHISM_SCANCODE_CAPSLOCK;
+}
+
 // TODO: Re-add controller support, preferably in a global controller.c
 // that only receives raw events to translate them into keyboard/mouse events
 
@@ -305,20 +311,24 @@ static void sdl3_pump_events(void)
 			pop_pending_keydown(NULL);
 #endif
 
-			if (e.key.key & SDLK_EXTENDED_MASK)
-				break; // I don't know how to handle these
-
 			schism_event.type = SCHISM_KEYDOWN;
 			schism_event.key.state = KEY_PRESS;
 			schism_event.key.repeat = e.key.repeat;
 
-			// Schism's and SDL3's representation of these are the same.
-			schism_event.key.sym = e.key.key;
 			schism_event.key.scancode = e.key.scancode;
+			/* REPORT-CARD >> features/fast-sample-load.feature */
+			if (e.key.key & SDLK_EXTENDED_MASK) {
+				if (schism_event.key.scancode != SCHISM_SCANCODE_CAPSLOCK)
+					break; // I don't know how to handle these
+				schism_event.key.sym = SCHISM_KEYSYM_CAPSLOCK;
+			} else {
+				// Schism's and SDL3's representation of these are the same.
+				schism_event.key.sym = e.key.key;
+			}
 			schism_event.key.mod = sdl3_modkey_trans(e.key.mod); // except this one!
 
 #ifdef SCHISM_SDL3_USE_COMPOSITION
-			if (sdl3_video_text_input_active()) {
+			if (!sdl3_is_capslock_key_event(&e) && sdl3_video_text_input_active()) {
 				push_pending_keydown(&schism_event);
 			} else {
 #else
@@ -336,13 +346,16 @@ static void sdl3_pump_events(void)
 			pop_pending_keydown(NULL);
 #endif
 
-			if (e.key.key & SDLK_EXTENDED_MASK)
-				break; // I don't know how to handle these
-
 			schism_event.type = SCHISM_KEYUP;
 			schism_event.key.state = KEY_RELEASE;
-			schism_event.key.sym = e.key.key;
 			schism_event.key.scancode = e.key.scancode;
+			if (e.key.key & SDLK_EXTENDED_MASK) {
+				if (schism_event.key.scancode != SCHISM_SCANCODE_CAPSLOCK)
+					break; // I don't know how to handle these
+				schism_event.key.sym = SCHISM_KEYSYM_CAPSLOCK;
+			} else {
+				schism_event.key.sym = e.key.key;
+			}
 			schism_event.key.mod = sdl3_modkey_trans(e.key.mod);
 
 #ifndef SCHISM_SDL3_USE_COMPOSITION

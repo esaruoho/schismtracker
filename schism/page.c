@@ -491,6 +491,34 @@ static int rshift_tap_check(struct key_event *k)
 	return 0;
 }
 
+/* REPORT-CARD >> features/fast-sample-load.feature */
+static int capslock_sample_load_check(struct key_event *k)
+{
+	if (k->sym != SCHISM_KEYSYM_CAPSLOCK
+	    && k->scancode != SCHISM_SCANCODE_CAPSLOCK)
+		return 0;
+
+	if (status.dialog_type != DIALOG_NONE)
+		return 0;
+
+	if (!NO_MODIFIER(k->mod))
+		return 0;
+
+	if (k->state != KEY_PRESS)
+		return 1;
+
+	if (k->is_repeat)
+		return 1;
+
+	_mp_finish(NULL);
+
+	if (status.current_page == PAGE_LOAD_SAMPLE)
+		return sample_load_current_file_to_free_slot(0);
+
+	set_page(PAGE_LOAD_SAMPLE);
+	return 1;
+}
+
 /* --------------------------------------------------------------------------------------------------------- */
 /* Shift-F4: set up a multitimbral rig in one gesture -- an instrument per MIDI
  * channel, each claiming its channel, with channel 10 built as a drum kit the
@@ -1076,7 +1104,11 @@ static int handle_key_global(struct key_event * k)
 		if (status.dialog_type != DIALOG_NONE)
 			return 0;
 		_mp_finish(NULL);
-		if (k->mod & SCHISM_KEYMOD_ALT) {
+		if (status.current_page == PAGE_LOAD_SAMPLE && NO_MODIFIER(k->mod)) {
+			if (k->state == KEY_PRESS && !k->is_repeat)
+				sample_load_current_file_to_free_slot(1);
+			return 1;
+		} else if (k->mod & SCHISM_KEYMOD_ALT) {
 			if (k->state == KEY_PRESS) {
 				midi_flags ^= (MIDI_DISABLE_RECORD);
 				status_text_flash("MIDI Input %s",
@@ -1301,6 +1333,9 @@ void handle_key(struct key_event *k)
 		return;
 
 	if (rshift_tap_check(k))
+		return;
+
+	if (capslock_sample_load_check(k))
 		return;
 
 	/* okay... */
@@ -2071,4 +2106,3 @@ void set_next_instrument(void)
 	else
 		sample_set(sample_get_current() + 1);
 }
-

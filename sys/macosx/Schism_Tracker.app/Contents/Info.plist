@@ -112,5 +112,7 @@
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>ApplePressAndHoldEnabled</key>
+	<false/>
 </dict>
 </plist>

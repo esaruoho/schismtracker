@@ -69,6 +69,7 @@ os_onframe: called every frame (or so)
 # define os_get_modkey macosx_get_modkey
 # define os_get_key_repeat macosx_get_key_repeat
 # define os_show_message_box macosx_show_message_box
+# define os_open_folder macosx_open_folder
 #elif defined(SCHISM_MACOS)
 # define os_mkdir macos_mkdir
 # define os_stat macos_stat
@@ -98,6 +99,7 @@ os_onframe: called every frame (or so)
 #if defined(SCHISM_WIN32)
 # define os_exec win32_exec
 # define os_run_hook win32_run_hook
+# define os_open_folder win32_open_folder
 #elif defined(HAVE_EXECL) && defined(HAVE_FORK) && (defined(HAVE_WAITID) || defined(HAVE_WAITPID))
 # define os_exec posix_exec
 # define os_run_hook posix_run_hook
@@ -213,6 +215,7 @@ int win32_mkdir(const char *path, uint32_t mode);
 FILE* win32_fopen(const char *path, const char *flags);
 int win32_exec(int *status, int *abnormal_exit, const char *dir, const char *name, ...);
 int win32_run_hook(const char *dir, const char *exe, const char *maybe_arg);
+int win32_open_folder(const char *path);
 int win32_get_key_repeat(int *pdelay, int *prate);
 void win32_show_message_box(const char *title, const char *text, int style);
 int win32_audio_lookup_device_name(const void *nameguid, const uint32_t *waveoutdevid, char **result);
@@ -234,6 +237,7 @@ void macosx_get_modkey(schism_keymod_t *m);
 int macosx_get_key_repeat(int *pdelay, int *prate);
 char *macosx_get_application_support_dir(void);
 void macosx_show_message_box(const char *title, const char *text, int style);
+int macosx_open_folder(const char *path);
 int macosx_ver_atleast(int major, int minor, int patch);
 int macosx_get_screen_rect(double *x, double *y, double *w, double *h);
 int macosx_get_window_rect(double *x, double *y, double *w, double *h);
@@ -305,5 +309,20 @@ int os_shell(const char *name, const char *arg)
 	return -1;
 #endif
 }
+
+#ifndef os_open_folder
+static inline SCHISM_ALWAYS_INLINE
+int os_open_folder(const char *path)
+{
+# if defined(SCHISM_MACOSX)
+	return os_shell("/usr/bin/open", path) == 0;
+# elif defined(HAVE_OS_EXEC)
+	return os_shell("/usr/bin/xdg-open", path) == 0;
+# else
+	(void)path;
+	return 0;
+# endif
+}
+#endif
 
 #endif /* SCHISM_OSDEFS_H_ */

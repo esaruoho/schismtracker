@@ -59,6 +59,8 @@ static struct widget widgets_loadsample[15];
 static int fake_slot_changed = 0;
 static int will_move_to = -1;
 static int fake_slot = KEYJAZZ_NOINST;
+static int fastload_destination_page = PAGE_SAMPLE_LIST;
+static int fastload_create_host = 0;
 static const char *const loop_states[] = {
 		"Off", "On Forwards", "On Ping Pong", NULL };
 
@@ -105,6 +107,8 @@ static void clear_directory(void)
 	dmoz_free(&flist, NULL);
 	fake_slot = KEYJAZZ_NOINST;
 	fake_slot_changed = 0;
+	fastload_destination_page = PAGE_SAMPLE_LIST;
+	fastload_create_host = 0;
 }
 
 static void file_list_reposition(void)
@@ -475,9 +479,22 @@ static void stereo_cvt_complete_right(void)
 
 static void stereo_cvt_complete_both(void)
 {
+	int cur = sample_get_current();
+	int destination_page = fastload_destination_page;
+	int create_host = fastload_create_host;
+
+	fastload_destination_page = PAGE_SAMPLE_LIST;
+	fastload_create_host = 0;
+
 	memused_songchanged();
 	dialog_destroy();
-	sample_host_dialog(PAGE_SAMPLE_LIST);
+	if (create_host) {
+		song_create_host_instrument(cur);
+		if (destination_page >= 0)
+			set_page(destination_page);
+	} else {
+		sample_host_dialog(destination_page);
+	}
 }
 
 static void stereo_cvt_dialog(void)
@@ -518,12 +535,26 @@ static int stereo_cvt_hk(struct key_event *k)
 static void finish_load(int cur)
 {
 	song_sample_t *smp;
+	int destination_page = fastload_destination_page;
+	int create_host = fastload_create_host;
+
+	fastload_destination_page = PAGE_SAMPLE_LIST;
+	fastload_create_host = 0;
 
 	status.flags |= SONG_NEEDS_SAVE;
 	memused_songchanged();
 	smp = song_get_sample(cur);
 	if (smp->flags & CHN_STEREO) {
 		struct dialog *dd;
+
+		/* REPORT-CARD >> features/fast-sample-load.feature */
+		if (create_host) {
+			song_create_host_instrument(cur);
+			if (destination_page >= 0)
+				set_page(destination_page);
+			return;
+		}
+
 		widget_create_button(stereo_cvt_widgets+0, 27, 30, 6,
 				0, 0, 2, 1, 1,
 				stereo_cvt_complete_left, "Left", 2);
@@ -541,9 +572,17 @@ static void finish_load(int cur)
 				1,
 				stereo_cvt_dialog, NULL);
 		dd->handle_key = stereo_cvt_hk;
+		fastload_destination_page = destination_page;
+		fastload_create_host = create_host;
 		return;
 	}
-	sample_host_dialog(PAGE_SAMPLE_LIST);
+	if (create_host) {
+		song_create_host_instrument(cur);
+		if (destination_page >= 0)
+			set_page(destination_page);
+	} else {
+		sample_host_dialog(destination_page);
+	}
 }
 
 static void reposition_at_slash_search(void)
@@ -760,6 +799,71 @@ static void handle_enter_key(void)
 	}
 }
 
+static int first_free_sample_instrument_pair(void)
+{
+	int n;
+
+	for (n = 1; n < MAX_SAMPLES && n < MAX_INSTRUMENTS; n++) {
+		if (csf_sample_is_empty(current_song->samples + n)
+		    && csf_instrument_is_empty(current_song->instruments[n]))
+			return n;
+	}
+
+	return -1;
+}
+
+/* REPORT-CARD >> features/fast-sample-load.feature */
+int sample_load_current_file_to_free_slot(int follow)
+{
+	dmoz_file_t *file;
+	int cur;
+
+	if (current_file < 0 || current_file >= flist.num_files)
+		return 0;
+
+	if (_library_mode)
+		return 0;
+
+	file = flist.files[current_file];
+	dmoz_cache_update(cfg_dir_samples, &flist, NULL);
+	dmoz_fill_ext_data(file);
+
+	if (!file || !(file->type & TYPE_SAMPLE_MASK)) {
+		status_text_flash("Pick a sample to quick-load");
+		return 1;
+	}
+
+	cur = first_free_sample_instrument_pair();
+	if (cur < 0) {
+		status_text_flash("Error: No free Sample/Instrument pair!");
+		return 1;
+	}
+
+	sample_set(cur);
+	instrument_set(cur);
+	fastload_destination_page = PAGE_PATTERN_EDITOR;
+	fastload_create_host = 1;
+	midi_playback_tracing = playback_tracing = follow ? 1 : 0;
+
+	handle_enter_key();
+	status_text_flash("Sample %d loaded; follow %s", cur, follow ? "on" : "off");
+	return 1;
+}
+
+static int open_current_sample_folder(void)
+{
+	const char *path = *samp_cwd ? samp_cwd : cfg_dir_samples;
+
+	/* REPORT-CARD >> features/fast-sample-load.feature */
+	if (path && *path && os_open_folder(path)) {
+		status_text_flash("Opened folder in file manager");
+		return 1;
+	}
+
+	status_text_flash("Could not open folder");
+	return 0;
+}
+
 static void do_discard_changes_and_move(SCHISM_UNUSED void *gn)
 {
 	fake_slot = KEYJAZZ_NOINST;
@@ -875,6 +979,14 @@ static int file_list_handle_key(struct key_event * k)
 		return 1;
 	}
 
+	if (k->sym == SCHISM_KEYSYM_RIGHT && NO_MODIFIER(k->mod)) {
+		if (k->state == KEY_PRESS && !k->is_repeat) {
+			search_pos = -1;
+			open_current_sample_folder();
+		}
+		return 1;
+	}
+
 	if (k->mouse) {
 		if (k->x >= 6 && k->x <= 49 && k->y >= 13 && k->y <= 47) {
 			search_pos = -1;
@@ -888,6 +1000,12 @@ static int file_list_handle_key(struct key_event * k)
 		}
 	}
 	switch (k->sym) {
+	case SCHISM_KEYSYM_SCROLLLOCK:
+		if (k->state == KEY_PRESS && !k->is_repeat && NO_MODIFIER(k->mod)) {
+			search_pos = -1;
+			return sample_load_current_file_to_free_slot(1);
+		}
+		return 1;
 	case SCHISM_KEYSYM_UP:           new_file--; search_pos = -1; break;
 	case SCHISM_KEYSYM_DOWN:         new_file++; search_pos = -1; break;
 	case SCHISM_KEYSYM_PAGEUP:       new_file -= 35; search_pos = -1; break;
@@ -1251,4 +1369,3 @@ void library_sample_load_page(struct page *page)
 	page->widgets = widgets_loadsample;
 	page->help_index = HELP_GLOBAL;
 }
-

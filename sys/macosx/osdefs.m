@@ -40,6 +40,32 @@
 
 /* ------------------------------------------------------------------------ */
 
+int macosx_open_folder(const char *path)
+{
+	NSAutoreleasePool *pool;
+	NSString *folder;
+	NSURL *url;
+	BOOL is_dir = NO;
+	BOOL ok;
+
+	if (!path || !*path)
+		return 0;
+
+	pool = [[NSAutoreleasePool alloc] init];
+	folder = [NSString stringWithUTF8String:path];
+	url = folder ? [NSURL fileURLWithPath:folder isDirectory:YES] : nil;
+	ok = (folder
+		&& [[NSFileManager defaultManager] fileExistsAtPath:folder isDirectory:&is_dir]
+		&& is_dir
+		&& url
+		&& [[NSWorkspace sharedWorkspace] openURL:url]);
+	[pool release];
+
+	return ok ? 1 : 0;
+}
+
+/* ------------------------------------------------------------------------ */
+
 int macosx_get_key_repeat(int *pdelay, int *prate)
 {
 	NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];

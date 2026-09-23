@@ -231,6 +231,32 @@ void win32_show_message_box(const char *title, const char *text, int style)
 	})
 }
 
+int win32_open_folder(const char *path)
+{
+	if (!path || !*path)
+		return 0;
+
+	SCHISM_ANSI_UNICODE({
+		char *path_a = NULL;
+		int success = 0;
+
+		if (!charset_iconv(path, &path_a, CHARSET_UTF8, CHARSET_ANSI, SIZE_MAX))
+			success = ((intptr_t)ShellExecuteA(NULL, "open", path_a, NULL, NULL, SW_SHOWNORMAL) > 32);
+
+		free(path_a);
+		return success;
+	}, {
+		wchar_t *path_w = NULL;
+		int success = 0;
+
+		if (!charset_iconv(path, &path_w, CHARSET_UTF8, CHARSET_WCHAR_T, SIZE_MAX))
+			success = ((intptr_t)ShellExecuteW(NULL, L"open", path_w, NULL, NULL, SW_SHOWNORMAL) > 32);
+
+		free(path_w);
+		return success;
+	})
+}
+
 /* -------------------------------------------------------------------- */
 /* Key repeat */
 

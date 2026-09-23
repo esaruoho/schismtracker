@@ -267,6 +267,7 @@ void toggle_display_fullscreen(void);
 /* page_instruments/page_samples.c */
 int sample_get_current(void);
 void sample_set(int n);
+int sample_load_current_file_to_free_slot(int follow);
 int instrument_get_current(void);
 void instrument_set(int n);
 void instrument_synchronize_to_sample(void);
@@ -340,4 +341,3 @@ void fft_get_columns(uint32_t width, unsigned char *out, uint32_t chan);
 /* --------------------------------------------------------------------- */
 
 #endif /* SCHISM_IT_H_ */
-

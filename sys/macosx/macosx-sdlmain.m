@@ -450,6 +450,11 @@ int main(int argc, char **argv)
 {
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
+	/* REPORT-CARD >> features/fast-sample-load.feature
+	 * Caps Lock is a tracker command key in this fork. macOS press-and-hold
+	 * character picking must not pop over the tracker while fast-loading. */
+	[[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"ApplePressAndHoldEnabled"];
+
 	/* Copy the arguments into a global variable -- this
 	 * is passed if we are launched by double-clicking */
 	macosx_did_finderlaunch = (argc >= 2 && strncmp (argv[1], "-psn", 4) == 0);
