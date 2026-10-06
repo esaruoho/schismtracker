@@ -326,3 +326,54 @@ testresult_t test_song_insert_channel(void)
 	current_song = NULL;
 	RETURN_PASS;
 }
+
+// REPORT-CARD >> features/global-channel-delete.feature
+testresult_t test_song_remove_channel(void)
+{
+	song_t *csf = create_subject();
+	current_song = csf;
+
+	stamp_channel(csf, 2, 10); /* channel 3 */
+	stamp_channel(csf, 3, 40); /* channel 4 */
+	csf->channels[2].panning = 11;
+	csf->channels[3].panning = 33;
+	csf->channels[MAX_CHANNELS - 1].panning = 200; /* dirty last channel */
+
+	/* emptiness predicate */
+	ASSERT(!song_channel_is_empty(2));
+	ASSERT(song_channel_is_empty(10));
+
+	/* remove channel 3 (0-based 2): channel 4 slides down into slot 2 */
+	status.flags &= ~SONG_NEEDS_SAVE;
+	ASSERT(song_remove_channel(2));
+	ASSERT(channel_note_matches(csf, 2, 40));
+	ASSERT(csf->channels[2].panning == 33);
+	/* the last channel is now blank with default settings */
+	ASSERT(song_channel_is_empty(MAX_CHANNELS - 1));
+	ASSERT(csf->channels[MAX_CHANNELS - 1].panning == 128);
+	ASSERT(csf->channels[MAX_CHANNELS - 1].volume == 64);
+	ASSERT(csf->channels[MAX_CHANNELS - 1].flags == 0);
+	ASSERT(status.flags & SONG_NEEDS_SAVE);
+
+	/* out of range is a no-op returning 0 */
+	ASSERT(!song_remove_channel(-1));
+	ASSERT(!song_remove_channel(MAX_CHANNELS));
+
+	csf_free(csf);
+	current_song = NULL;
+
+	/* insert-then-remove at the same channel is a round trip */
+	csf = create_subject();
+	current_song = csf;
+	stamp_channel(csf, 2, 10);
+	csf->channels[2].panning = 77;
+	ASSERT(song_insert_channel(2));   /* ch3 data pushed to ch4 */
+	ASSERT(channel_note_matches(csf, 3, 10));
+	ASSERT(song_remove_channel(2));   /* pull it back down */
+	ASSERT(channel_note_matches(csf, 2, 10));
+	ASSERT(csf->channels[2].panning == 77);
+	csf_free(csf);
+	current_song = NULL;
+
+	RETURN_PASS;
+}

@@ -210,6 +210,10 @@ int song_find_last_channel(void);
 void song_exchange_channels(int a, int b);
 /* Zero based; returns 0 without changes if the last channel has pattern data. */
 int song_insert_channel(int channel);
+/* Zero based; shift higher channels down one and blank the last. Returns 1. */
+int song_remove_channel(int channel);
+/* Zero based; nonzero if the channel has no note data in any pattern. */
+int song_channel_is_empty(int channel);
 
 int song_get_pattern(int n, song_note_t ** buf);  // return 0 -> error
 int song_get_pattern_offset(int * n, song_note_t ** buf, int * row, int offset);

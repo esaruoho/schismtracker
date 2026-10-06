@@ -14,3 +14,4 @@
 - Resume: `claude --resume 3090abe7-2729-46d3-bd83-21efcae19f21`
 - Transcript: file:///Users/esaruoho/.claude/projects/-Users-esaruoho-work-schismtracker/3090abe7-2729-46d3-bd83-21efcae19f21.jsonl
 - Tooling touched: INDEX.md, STATUS.md, cards.conf, gen-sessions.py, gen-status.py, print-card.py
+- Cards touched (4): ableton-link.feature, channel-move.feature, global-channel-delete.feature, global-channel-insert.feature

@@ -9,6 +9,7 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 - [Sharing tempo, transport and audio over Ableton Link](#ableton-link) — `ableton-link.feature`
 - [Move a channel across every pattern](#channel-move) — `channel-move.feature`
 - [Fast sample loading into the pattern editor](#fast-sample-load) — `fast-sample-load.feature`
+- [Safely delete a channel throughout the song](#global-channel-delete) — `global-channel-delete.feature`
 - [Safely insert a channel throughout the song](#global-channel-insert) — `global-channel-insert.feature`
 - [Build and launch Schism Tracker on macOS](#mac-build-run) — `mac-build-run.feature`
 - [Upload Windows binaries from a nested checkout](#windows-release-upload) — `windows-release-upload.feature`
@@ -84,6 +85,23 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 **How it does it:** **Key procs:** `capslock_sample_load_check`, `sample_load_current_file_to_free_slot` · **Source files:** `sys/sdl3/events.c`, `schism/page.c`, `schism/page_loadsample.c`, `schism/loadso.c`, `include/osdefs.h`, `sys/win32/osdefs.c`
 
 **Grade:** @build-verified ×6 · @runtime-untested ×5 · @shipped ×7 · @stock ×1
+
+
+<a id="global-channel-delete"></a>
+## Safely delete a channel throughout the song
+
+`features/global-channel-delete.feature`
+
+**Behaviour (4 scenarios):**
+
+- Remove an empty channel without asking — `@build-verified @runtime-untested`
+- Confirm before removing a channel that holds data — `@build-verified @runtime-untested`
+- Alt-Delete still deletes a pattern row — `@stock`
+- Automated removal regression — `@sim-verified`
+
+**How it does it:** **Key procs:** `song_remove_channel`, `song_channel_is_empty`, `song_clear_channel_locked`, `pattern_remove_channel` · **Source files:** `schism/page_patedit.c`, `schism/mplink.c`, `test/cases/mplink.c`
+
+**Grade:** @build-verified ×2 · @runtime-untested ×2 · @sim-verified ×1 · @stock ×1
 
 
 <a id="global-channel-insert"></a>

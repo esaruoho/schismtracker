@@ -330,6 +330,72 @@ int song_insert_channel(int channel)
 	return 1;
 }
 
+/* Blank one channel (ZERO BASED) song-wide: clear its note column in every
+ * pattern and reset its settings/mute to the defaults a fresh channel has. */
+static void song_clear_channel_locked(int channel)
+{
+	int p, row;
+
+	for (p = 0; p < MAX_PATTERNS; p++) {
+		song_note_t *data = current_song->patterns[p];
+		if (!data)
+			continue;
+		for (row = 0; row < current_song->pattern_size[p]; row++)
+			memset(&data[row * MAX_CHANNELS + channel], 0, sizeof(song_note_t));
+	}
+
+	current_song->channels[channel].panning = 128;
+	current_song->channels[channel].volume = 64;
+	current_song->channels[channel].flags = 0;
+	current_song->voices[channel].flags &= ~CHN_MUTE;
+	channel_states[channel] = 0;
+}
+
+/* Is a channel (ZERO BASED) free of note data in every pattern? Mirrors the
+ * emptiness test song_insert_channel uses on the last column, so the pattern
+ * editor can decide whether removing it needs a confirmation. */
+int song_channel_is_empty(int channel)
+{
+	int p, row;
+
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 1;
+
+	for (p = 0; p < MAX_PATTERNS; p++) {
+		if (!current_song->patterns[p])
+			continue;
+		for (row = 0; row < current_song->pattern_size[p]; row++)
+			if (!csf_note_is_empty(&current_song->patterns[p][row * MAX_CHANNELS + channel]))
+				return 0;
+	}
+	return 1;
+}
+
+/* Remove a channel (ZERO BASED) song-wide: every higher channel shifts down
+ * one, and the last channel becomes blank. The inverse of song_insert_channel.
+ * Always succeeds for an in-range channel (returns 1); unlike insert it cannot
+ * push data off the end, because the only column that disappears is the one
+ * being deleted. */
+/* REPORT-CARD >> features/global-channel-delete.feature */
+int song_remove_channel(int channel)
+{
+	int c;
+
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
+
+	song_lock_audio();
+	/* bubble the doomed channel up to the last slot (this shifts channels,
+	 * their settings, mute, and saved mute state all down by one), then
+	 * blank that last slot. */
+	for (c = channel; c < MAX_CHANNELS - 1; c++)
+		song_exchange_channels_locked(c, c + 1);
+	song_clear_channel_locked(MAX_CHANNELS - 1);
+	status.flags |= SONG_NEEDS_SAVE;
+	song_unlock_audio();
+	return 1;
+}
+
 // ------------------------------------------------------------------------
 
 // calculates row of offset from passed row.

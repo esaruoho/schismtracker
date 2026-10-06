@@ -13,13 +13,14 @@
 | ableton-link | 19 | ✓ | — | ✓ | @build-verified @corrected @design-note @hw-untested @hw-verified @lib-verified @shipped @todo |
 | channel-move | 2 | ✓ | ✗ | — | @build-verified @built @runtime-untested |
 | fast-sample-load | 8 | ✓ | ✗ | — | @app-launch-verified @build-verified @runtime-untested @shipped @stock |
+| global-channel-delete | 4 | ✓ | ✗ | — | @build-verified @runtime-untested @sim-verified @stock |
 | global-channel-insert | 4 | ✓ | ✗ | — | @build-verified @runtime-untested @sim-verified @stock |
 | mac-build-run | 4 | ✓ | ✓ | — | @build-verified @runtime-verified |
 | windows-release-upload | 2 | ✓ | ✗ | — | @build-verified @built @runtime-untested |
 
 ## Tally (computed)
-- Cards: 6
-- Build-verified: 6
+- Cards: 7
+- Build-verified: 7
 - Runtime-verified: 1 full + 0 partial
 - **Hardware-verified: 1**  ·  hardware-untested: 0
 

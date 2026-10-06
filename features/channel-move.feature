@@ -7,6 +7,7 @@
 # WATCH: song_exchange_channels pattern_move_channel shift_gesture test_song_exchange_channels
 # RESULT-LOG >>
 #   2026-10-06  direct-commit  touched: song_exchange_channels
+#   2026-10-06  direct-commit  touched: song_exchange_channels
 Feature: Move a channel across every pattern
   @build-verified
   Scenario: Exchange and restore two channels throughout a song

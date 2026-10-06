@@ -3849,6 +3849,77 @@ static void pattern_move_channel(int chan, int dest)
 	status_text_flash("Channel %d moved to %d", chan, dest);
 }
 
+/* Remove a channel (1-based) song-wide: every higher channel shifts down one
+ * and the last becomes blank. Carries the editor's multichannel-record toggles
+ * along the same way, then flashes a status line. The inverse of the Shift-Alt-
+ * Insert gesture. */
+/* REPORT-CARD >> features/global-channel-delete.feature */
+static void pattern_remove_channel(int chan)
+{
+	int c;
+
+	if (chan < 1 || chan > MAX_CHANNELS)
+		return;
+
+	song_remove_channel(chan - 1);
+
+	for (c = chan - 1; c < MAX_CHANNELS - 1; c++)
+		channel_multi[c] = channel_multi[c + 1];
+	channel_multi[MAX_CHANNELS - 1] = 0;
+
+	status_text_flash("Channel %d removed from all patterns", chan);
+	status.flags |= NEED_UPDATE;
+}
+
+/* Deferred target for the "channel has data" confirmation below. */
+static int remove_channel_pending;
+
+static void pattern_remove_channel_confirm(SCHISM_UNUSED void *data)
+{
+	pattern_remove_channel(remove_channel_pending);
+}
+
+/* Insert a blank channel at the cursor across all patterns. Bound to several
+ * keys (Shift-Alt with Insert / Return / '=') so it is reachable on laptops
+ * that lack an Insert key. Refuses with a dialog if channel 64 holds data. */
+/* REPORT-CARD >> features/global-channel-insert.feature */
+static void pattern_insert_channel_at_cursor(void)
+{
+	int c, last_multi;
+
+	if (!song_insert_channel(current_channel - 1)) {
+		dialog_create(DIALOG_OK,
+			"Channel 64 has data. Move or clear it first.",
+			NULL, NULL, 0, NULL);
+		return;
+	}
+	last_multi = channel_multi[MAX_CHANNELS - 1];
+	for (c = MAX_CHANNELS - 1; c >= current_channel; c--)
+		channel_multi[c] = channel_multi[c - 1];
+	channel_multi[current_channel - 1] = last_multi;
+	status_text_flash("Channel %d inserted in all patterns", current_channel);
+	status.flags |= NEED_UPDATE;
+}
+
+/* Delete the channel at the cursor across all patterns, confirming first if it
+ * holds data. Bound to several keys (Shift-Alt with Delete / Backspace / '-')
+ * so it is reachable on laptops that lack a Delete key. */
+/* REPORT-CARD >> features/global-channel-delete.feature */
+static void pattern_delete_channel_at_cursor(void)
+{
+	if (song_channel_is_empty(current_channel - 1)) {
+		pattern_remove_channel(current_channel);
+	} else {
+		char buf[64];
+		remove_channel_pending = current_channel;
+		snprintf(buf, sizeof(buf),
+			"Delete channel %d in all patterns? Its data is lost.",
+			current_channel);
+		dialog_create(DIALOG_OK_CANCEL, buf,
+			pattern_remove_channel_confirm, NULL, 1, NULL);
+	}
+}
+
 static int pattern_editor_handle_alt_key(struct key_event * k)
 {
 	int n;
@@ -3876,16 +3947,50 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 
 	switch (k->sym) {
 	case SCHISM_KEYSYM_RETURN:
+		/* Shift-Alt-Return: insert channel (laptop alias for Shift-Alt-Insert) */
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			if (k->state == KEY_RELEASE)
+				return 1;
+			pattern_insert_channel_at_cursor();
+			return 1;
+		}
 		if (k->state == KEY_PRESS)
 			return 1;
 		fast_save_update();
 		return 1;
 
 	case SCHISM_KEYSYM_BACKSPACE:
+		/* Shift-Alt-Backspace: delete channel (laptop alias for Shift-Alt-Delete) */
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			if (k->state == KEY_RELEASE)
+				return 1;
+			pattern_delete_channel_at_cursor();
+			return 1;
+		}
 		if (k->state == KEY_PRESS)
 			return 1;
 		pated_save("Undo revert pattern data (Alt-BkSpace)");
 		snap_paste(&fast_save, 0, 0, 0);
+		return 1;
+
+	/* Shift-Alt-'=' / Shift-Alt-'-': insert/delete channel. '+'/'-' as a
+	 * mnemonic for add/remove, and reachable on layouts without Ins/Del. */
+	case SCHISM_KEYSYM_EQUALS:
+	case SCHISM_KEYSYM_PLUS:
+	case SCHISM_KEYSYM_KP_PLUS:
+		if (!(k->mod & SCHISM_KEYMOD_SHIFT))
+			return 0;
+		if (k->state == KEY_RELEASE)
+			return 1;
+		pattern_insert_channel_at_cursor();
+		return 1;
+	case SCHISM_KEYSYM_MINUS:
+	case SCHISM_KEYSYM_KP_MINUS:
+		if (!(k->mod & SCHISM_KEYMOD_SHIFT))
+			return 0;
+		if (k->state == KEY_RELEASE)
+			return 1;
+		pattern_delete_channel_at_cursor();
 		return 1;
 
 	case SCHISM_KEYSYM_b:
@@ -4198,20 +4303,8 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 	case SCHISM_KEYSYM_INSERT:
 		if (k->state == KEY_RELEASE)
 			return 1;
-		/* REPORT-CARD >> features/global-channel-insert.feature */
 		if (k->mod & SCHISM_KEYMOD_SHIFT) {
-			if (!song_insert_channel(current_channel - 1)) {
-				dialog_create(DIALOG_OK,
-					"Channel 64 has data. Move or clear it first.",
-					NULL, NULL, 0, NULL);
-				return 1;
-			}
-			int last_multi = channel_multi[MAX_CHANNELS - 1];
-			for (int c = MAX_CHANNELS - 1; c >= current_channel; c--)
-				channel_multi[c] = channel_multi[c - 1];
-			channel_multi[current_channel - 1] = last_multi;
-			status_text_flash("Channel %d inserted in all patterns", current_channel);
-			status.flags |= NEED_UPDATE;
+			pattern_insert_channel_at_cursor();
 			return 1;
 		}
 		pated_save("Remove inserted row(s)    (Alt-Insert)");
@@ -4220,6 +4313,10 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 	case SCHISM_KEYSYM_DELETE:
 		if (k->state == KEY_RELEASE)
 			return 1;
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			pattern_delete_channel_at_cursor();
+			return 1;
+		}
 		pated_save("Replace deleted row(s)    (Alt-Delete)");
 		pattern_delete_rows(current_row, 1, 1, MAX_CHANNELS);
 		break;
@@ -4912,7 +5009,7 @@ static int pattern_editor_handle_key_cb(struct key_event * k)
 		|| ((k->mod & SCHISM_KEYMOD_ALT)
 			&& (k->sym == SCHISM_KEYSYM_UP || k->sym == SCHISM_KEYSYM_DOWN
 				|| k->sym == SCHISM_KEYSYM_LEFT || k->sym == SCHISM_KEYSYM_RIGHT
-				|| k->sym == SCHISM_KEYSYM_INSERT));
+				|| k->sym == SCHISM_KEYSYM_INSERT || k->sym == SCHISM_KEYSYM_DELETE));
 
 	if ((k->mod & SCHISM_KEYMOD_SHIFT) && !shift_gesture) {
 		switch (k->sym) {

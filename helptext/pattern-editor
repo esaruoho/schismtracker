@@ -143,7 +143,9 @@
 |
 |   Ins/Del          Insert/Delete a row to/from current channel
 |   Alt-Ins/Del      Insert/Delete an entire row to/from pattern  (*)
-|   Shift-Alt-Ins    Insert channel in all patterns (64 must be empty)
+|   Shift-Alt-Ins/Ret/+  Insert channel in all patterns (64 must be empty)
+|   Shift-Alt-Del/BkSp/-  Delete current channel from all patterns
+|   Shift-Alt-Left/Right  Move current channel left/right in all patterns
 |
 |   Up/Down          Move up/down by the skipvalue (set with Alt 0-9)
 |   Ctrl-Home/End    Move up/down by 1 row
