@@ -10,6 +10,7 @@
 
 **1 card conversations** plugged in:
 
-### `12b8d170-c5c6-4600-a31f-016cdc761827`  (2026-08-24 → 2026-08-25)
-- Resume: `claude --resume 12b8d170-c5c6-4600-a31f-016cdc761827`
-- Transcript: file:///Users/esaruoho/.claude/projects/-Users-esaruoho-work-schismtracker/12b8d170-c5c6-4600-a31f-016cdc761827.jsonl
+### `3090abe7-2729-46d3-bd83-21efcae19f21`  (2026-10-06)
+- Resume: `claude --resume 3090abe7-2729-46d3-bd83-21efcae19f21`
+- Transcript: file:///Users/esaruoho/.claude/projects/-Users-esaruoho-work-schismtracker/3090abe7-2729-46d3-bd83-21efcae19f21.jsonl
+- Tooling touched: INDEX.md, STATUS.md, cards.conf, gen-sessions.py, gen-status.py, print-card.py

@@ -237,6 +237,64 @@ int song_find_last_channel(void)
 	return n;
 }
 
+/* Exchange two channels (ZERO BASED) throughout the whole song: their column in
+ * every pattern, their channel settings (initial pan/volume/flags incl. mute),
+ * the live playing voices' mute bit, and the saved mute state used by solo.
+ * This is how the pattern editor moves a channel left/right across all patterns
+ * at once. Swapping is its own inverse and stays within the 1..MAX_CHANNELS
+ * range, so it can never truncate data or push a channel off the end. */
+void song_exchange_channels(int a, int b)
+{
+	int i, row, rows;
+
+	if (a == b || a < 0 || a >= MAX_CHANNELS || b < 0 || b >= MAX_CHANNELS)
+		return;
+
+	song_lock_audio();
+
+	for (i = 0; i < MAX_PATTERNS; i++) {
+		song_note_t *data = current_song->patterns[i];
+		if (!data)
+			continue;
+		/* pattern_size is the only row count guaranteed to be within the
+		 * actual allocation on every code path (some loaders leave
+		 * pattern_alloc_size at its default 64 while allocating fewer
+		 * rows); rows beyond it are never played or saved anyway. */
+		rows = current_song->pattern_size[i];
+		for (row = 0; row < rows; row++) {
+			song_note_t *base = data + (row * MAX_CHANNELS);
+			song_note_t tmp = base[a];
+			base[a] = base[b];
+			base[b] = tmp;
+		}
+	}
+
+	{
+		song_channel_t ctmp = current_song->channels[a];
+		current_song->channels[a] = current_song->channels[b];
+		current_song->channels[b] = ctmp;
+	}
+
+	/* keep the live voices' mute bit in step so a channel moved during
+	 * playback stays muted/unmuted with its data */
+	{
+		uint32_t ma = current_song->voices[a].flags & CHN_MUTE;
+		uint32_t mb = current_song->voices[b].flags & CHN_MUTE;
+		current_song->voices[a].flags = (current_song->voices[a].flags & ~CHN_MUTE) | mb;
+		current_song->voices[b].flags = (current_song->voices[b].flags & ~CHN_MUTE) | ma;
+	}
+
+	{
+		int stmp = channel_states[a];
+		channel_states[a] = channel_states[b];
+		channel_states[b] = stmp;
+	}
+
+	status.flags |= SONG_NEEDS_SAVE;
+
+	song_unlock_audio();
+}
+
 // ------------------------------------------------------------------------
 
 // calculates row of offset from passed row.

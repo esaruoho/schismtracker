@@ -1,0 +1,12 @@
+# macOS build and launch session
+
+## How to get back
+
+- Transcript: file:///Users/esaruoho/.codex/sessions/2026/10/06/rollout-2026-10-06T10-08-39-01a1100b-02f3-75f3-9de9-2ad6e6c2e541.jsonl
+- Session ID: 01a1100b-02f3-75f3-9de9-2ad6e6c2e541
+- Resume: `codex --resume 01a1100b-02f3-75f3-9de9-2ad6e6c2e541`
+- Session began 2026-10-06 10:08:39 local time, from transcript filename. Bundled transcript contains exact event timestamps.
+
+Esa requested a macOS build and launch. Compilation succeeded, but the initial bundle lacked SDL libraries. The assistant incorrectly described a process blocked in a fatal-error alert as successfully launched. The user supplied the crash text and then a screenshot of the SDL3 loading error. SDL2 here is sdl2-compat and requires libSDL3.dylib beside it, in addition to the versioned filename used by Schism's loader.
+
+Esa then requested build_mac.sh to build and run. The script uses existing configuration, bootstraps configuration when absent, copies Homebrew SDL runtime libraries, supplies the SDL3 alias, and opens the local app. Read-only copied libraries initially prevented repeated packaging; chmod before replacement corrected this. One complete build/package/launch returned zero and its process remained running. A second open -n failed to spawn another instance, so launch changed to plain open, which can activate an existing instance. No application source was modified, installed to /Applications, committed, or pushed.

@@ -3827,6 +3827,27 @@ static void pattern_replicate_at_cursor(int whole_pattern)
  *         (for keys that move the cursor)
  * 0 = didn't handle the key. */
 
+/* Move/swap two channels (1-based) through the whole song. The song layer does
+ * the heavy lifting (pattern data, channel settings, mute); here we also carry
+ * over the editor's own per-channel multichannel-record toggles and flash a
+ * status line. Swapping is reversible, so Shift-Alt-Left then Shift-Alt-Right
+ * restores the original order with no data loss. */
+static void pattern_move_channel(int chan, int dest)
+{
+	int tmp;
+
+	if (chan == dest || chan < 1 || chan > MAX_CHANNELS || dest < 1 || dest > MAX_CHANNELS)
+		return;
+
+	song_exchange_channels(chan - 1, dest - 1);
+
+	tmp = channel_multi[chan - 1];
+	channel_multi[chan - 1] = channel_multi[dest - 1];
+	channel_multi[dest - 1] = tmp;
+
+	status_text_flash("Channel %d moved to %d", chan, dest);
+}
+
 static int pattern_editor_handle_alt_key(struct key_event * k)
 {
 	int n;
@@ -4149,11 +4170,28 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 	case SCHISM_KEYSYM_LEFT:
 		if (k->state == KEY_RELEASE)
 			return 1;
+		/* Shift-Alt-Left moves this channel one step left (toward channel 1)
+		 * through every pattern at once; the cursor follows the data. */
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			if (current_channel > 1) {
+				pattern_move_channel(current_channel, current_channel - 1);
+				current_channel--;
+			}
+			return -1;
+		}
 		current_channel--;
 		return -1;
 	case SCHISM_KEYSYM_RIGHT:
 		if (k->state == KEY_RELEASE)
 			return 1;
+		/* Shift-Alt-Right moves this channel one step right, song-wide. */
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			if (current_channel < MAX_CHANNELS) {
+				pattern_move_channel(current_channel, current_channel + 1);
+				current_channel++;
+			}
+			return -1;
+		}
 		current_channel++;
 		return -1;
 	case SCHISM_KEYSYM_INSERT:
@@ -4851,11 +4889,12 @@ static int pattern_editor_handle_key_cb(struct key_event * k)
 
 	/* Some shifted chords are gestures rather than cursor movement, so they must
 	 * not also start a shift-selection on their way to the modifier handlers:
-	 * Ctrl-Shift-Down replicates the whole pattern, and Shift-Alt-Up/Down are
-	 * Home/End. */
+	 * Ctrl-Shift-Down replicates the whole pattern, Shift-Alt-Up/Down are
+	 * Home/End, and Shift-Alt-Left/Right move the current channel song-wide. */
 	int shift_gesture = ((k->mod & SCHISM_KEYMOD_CTRL) && k->sym == SCHISM_KEYSYM_DOWN)
 		|| ((k->mod & SCHISM_KEYMOD_ALT)
-			&& (k->sym == SCHISM_KEYSYM_UP || k->sym == SCHISM_KEYSYM_DOWN));
+			&& (k->sym == SCHISM_KEYSYM_UP || k->sym == SCHISM_KEYSYM_DOWN
+				|| k->sym == SCHISM_KEYSYM_LEFT || k->sym == SCHISM_KEYSYM_RIGHT));
 
 	if ((k->mod & SCHISM_KEYMOD_SHIFT) && !shift_gesture) {
 		switch (k->sym) {

@@ -225,3 +225,64 @@ testresult_t test_song_get_pattern_offset_past_end_of_song(void)
 
 	return result;
 }
+
+/* stamp a channel's note column with a recognisable value in every row of
+ * every allocated pattern, so a swap can be detected */
+static void stamp_channel(song_t *csf, int chan, uint8_t base)
+{
+	for (int p = 0; test_pattern_length[p]; p++) {
+		song_note_t *pat = csf->patterns[p];
+		for (int r = 0; r < csf->pattern_size[p]; r++)
+			pat[r * MAX_CHANNELS + chan].note = base + p;
+	}
+}
+
+static int channel_note_matches(song_t *csf, int chan, uint8_t base)
+{
+	for (int p = 0; test_pattern_length[p]; p++) {
+		song_note_t *pat = csf->patterns[p];
+		for (int r = 0; r < csf->pattern_size[p]; r++)
+			if (pat[r * MAX_CHANNELS + chan].note != (uint8_t)(base + p))
+				return 0;
+	}
+	return 1;
+}
+
+testresult_t test_song_exchange_channels(void)
+{
+	song_t *csf = create_subject();
+	current_song = csf;
+
+	/* two channels, distinct note stamps and distinct pan settings */
+	stamp_channel(csf, 2, 10);
+	stamp_channel(csf, 5, 60);
+	csf->channels[2].panning = 11;
+	csf->channels[5].panning = 222;
+
+	/* move channel 3 (0-based 2) to channel 6 (0-based 5) song-wide */
+	song_exchange_channels(2, 5);
+
+	ASSERT(channel_note_matches(csf, 2, 60)); /* now holds what 5 had */
+	ASSERT(channel_note_matches(csf, 5, 10)); /* now holds what 2 had */
+	ASSERT(csf->channels[2].panning == 222);
+	ASSERT(csf->channels[5].panning == 11);
+
+	/* swapping again restores the original arrangement exactly */
+	song_exchange_channels(2, 5);
+	ASSERT(channel_note_matches(csf, 2, 10));
+	ASSERT(channel_note_matches(csf, 5, 60));
+	ASSERT(csf->channels[2].panning == 11);
+	ASSERT(csf->channels[5].panning == 222);
+
+	/* no-ops: identical channels, and out-of-range indices, change nothing */
+	song_exchange_channels(2, 2);
+	song_exchange_channels(2, -1);
+	song_exchange_channels(2, MAX_CHANNELS);
+	ASSERT(channel_note_matches(csf, 2, 10));
+	ASSERT(csf->channels[2].panning == 11);
+
+	csf_free(csf);
+	current_song = NULL;
+
+	RETURN_PASS;
+}

@@ -12,10 +12,11 @@
 |------|----:|:-----:|:----------:|:--------:|----------------|
 | ableton-link | 19 | ✓ | — | ✓ | @build-verified @corrected @design-note @hw-untested @hw-verified @lib-verified @shipped @todo |
 | fast-sample-load | 8 | ✓ | ✗ | — | @app-launch-verified @build-verified @runtime-untested @shipped @stock |
+| mac-build-run | 3 | ✓ | ✓ | — | @build-verified @runtime-verified |
 
 ## Tally (computed)
-- Cards: 2
-- Build-verified: 2
-- Runtime-verified: 0 full + 0 partial
+- Cards: 3
+- Build-verified: 3
+- Runtime-verified: 1 full + 0 partial
 - **Hardware-verified: 1**  ·  hardware-untested: 0
 

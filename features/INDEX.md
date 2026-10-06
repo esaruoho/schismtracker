@@ -12,3 +12,5 @@ Derived views — GENERATED, never hand-edit:
 | Card | What it covers | Session | Shipped in |
 |------|----------------|---------|------------|
 | `fast-sample-load.feature` | Caps Lock / Scroll Lock fast sample loading into Pattern Editor | `fast-sample-load.session.md` | pending commit |
+# mac-build-run
+Local, uncommitted: [card](mac-build-run.feature), [session](mac-build-run.session.md), [script](../build_mac.sh). Final build/package/open invocation returned zero.

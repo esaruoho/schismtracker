@@ -37,3 +37,6 @@ configure~
 .DS_Store
 ._*
 libablink.a
+/schism_crash_*.log
+/sys/macosx/Schism_Tracker.app/Contents/MacOS/
+/sys/macosx/Schism_Tracker.app/Contents/Resources/*.dylib

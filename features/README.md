@@ -8,6 +8,7 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 
 - [Sharing tempo, transport and audio over Ableton Link](#ableton-link) — `ableton-link.feature`
 - [Fast sample loading into the pattern editor](#fast-sample-load) — `fast-sample-load.feature`
+- [Build and launch Schism Tracker on macOS](#mac-build-run) — `mac-build-run.feature`
 
 
 <a id="ableton-link"></a>
@@ -65,4 +66,20 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 **How it does it:** **Key procs:** `capslock_sample_load_check`, `sample_load_current_file_to_free_slot` · **Source files:** `sys/sdl3/events.c`, `schism/page.c`, `schism/page_loadsample.c`, `schism/loadso.c`, `include/osdefs.h`, `sys/win32/osdefs.c`
 
 **Grade:** @build-verified ×6 · @runtime-untested ×5 · @shipped ×7 · @stock ×1
+
+
+<a id="mac-build-run"></a>
+## Build and launch Schism Tracker on macOS
+
+`features/mac-build-run.feature` · [session](mac-build-run.session.md)
+
+**Behaviour (3 scenarios):**
+
+- Build and package the configured checkout — `@build-verified`
+- Repeat packaging of read-only Homebrew libraries — `@build-verified`
+- Launch or activate the app — `@runtime-verified`
+
+**How it does it:** **Key procs:** `build_mac`, `package_mac`
+
+**Grade:** @build-verified ×2 · @runtime-verified ×1
 

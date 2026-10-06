@@ -1,0 +1,13 @@
+#!/bin/bash
+# REPORT-CARD >> features/mac-build-run.feature
+set -euo pipefail
+repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ "$(uname -s)" == Darwin ]]; then
+    app_dir="$repo_dir/sys/macosx/Schism_Tracker.app"
+    if [[ ! -x "$app_dir/Contents/MacOS/schismtracker" ]]; then
+        "$repo_dir/build_mac.sh" --no-run
+    fi
+    open "$app_dir" --args "$@"
+else
+    exec "$repo_dir/schismtracker" "$@"
+fi
