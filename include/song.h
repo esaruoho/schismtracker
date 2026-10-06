@@ -208,6 +208,8 @@ int song_find_last_channel(void);
 // settings, live mute, and saved mute state. used to move a channel left/right
 // through the whole song from the pattern editor.
 void song_exchange_channels(int a, int b);
+/* Zero based; returns 0 without changes if the last channel has pattern data. */
+int song_insert_channel(int channel);
 
 int song_get_pattern(int n, song_note_t ** buf);  // return 0 -> error
 int song_get_pattern_offset(int * n, song_note_t ** buf, int * row, int offset);

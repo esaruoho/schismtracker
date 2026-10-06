@@ -7,7 +7,9 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 ## Contents
 
 - [Sharing tempo, transport and audio over Ableton Link](#ableton-link) — `ableton-link.feature`
+- [Move a channel across every pattern](#channel-move) — `channel-move.feature`
 - [Fast sample loading into the pattern editor](#fast-sample-load) — `fast-sample-load.feature`
+- [Safely insert a channel throughout the song](#global-channel-insert) — `global-channel-insert.feature`
 - [Build and launch Schism Tracker on macOS](#mac-build-run) — `mac-build-run.feature`
 
 
@@ -45,6 +47,21 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 **Grade:** @build-verified ×5 · @hw-untested ×3 · @hw-verified ×2 · @shipped ×5 · @todo ×4
 
 
+<a id="channel-move"></a>
+## Move a channel across every pattern
+
+`features/channel-move.feature` · [session](channel-move.session.md)
+
+**Behaviour (2 scenarios):**
+
+- Exchange and restore two channels throughout a song — `@build-verified`
+- Move a channel with the pattern editor shortcuts — `@built @runtime-untested`
+
+**How it does it:** **Key procs:** `song_exchange_channels`, `pattern_move_channel`, `shift_gesture`, `test_song_exchange_channels` · **Source files:** `schism/mplink.c`, `test/cases/mplink.c`, `schism/page_patedit.c`
+
+**Grade:** @build-verified ×1 · @built ×1 · @runtime-untested ×1
+
+
 <a id="fast-sample-load"></a>
 ## Fast sample loading into the pattern editor
 
@@ -68,18 +85,36 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 **Grade:** @build-verified ×6 · @runtime-untested ×5 · @shipped ×7 · @stock ×1
 
 
+<a id="global-channel-insert"></a>
+## Safely insert a channel throughout the song
+
+`features/global-channel-insert.feature` · [session](global-channel-insert.session.md)
+
+**Behaviour (4 scenarios):**
+
+- Refuse insertion when channel 64 contains data — `@build-verified @runtime-untested`
+- Insert an empty channel at the cursor — `@build-verified @runtime-untested`
+- Alt-Insert still inserts a pattern row — `@stock`
+- Automated insertion regression — `@sim-verified`
+
+**How it does it:** **Key procs:** `song_insert_channel`, `song_exchange_channels_locked`, `pattern_editor_handle_alt_key` · **Source files:** `schism/mplink.c`, `test/cases/mplink.c`, `schism/page_patedit.c`
+
+**Grade:** @build-verified ×2 · @runtime-untested ×2 · @sim-verified ×1 · @stock ×1
+
+
 <a id="mac-build-run"></a>
 ## Build and launch Schism Tracker on macOS
 
 `features/mac-build-run.feature` · [session](mac-build-run.session.md)
 
-**Behaviour (3 scenarios):**
+**Behaviour (4 scenarios):**
 
 - Build and package the configured checkout — `@build-verified`
 - Repeat packaging of read-only Homebrew libraries — `@build-verified`
 - Launch or activate the app — `@runtime-verified`
+- Launch aliases point to this checkout — `@runtime-verified`
 
-**How it does it:** **Key procs:** `build_mac`, `package_mac`
+**How it does it:** **Key procs:** `build_mac`, `package_mac`, `schism_alias_command`, `source_line`
 
-**Grade:** @build-verified ×2 · @runtime-verified ×1
+**Grade:** @build-verified ×2 · @runtime-verified ×2
 

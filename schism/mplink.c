@@ -243,14 +243,13 @@ int song_find_last_channel(void)
  * This is how the pattern editor moves a channel left/right across all patterns
  * at once. Swapping is its own inverse and stays within the 1..MAX_CHANNELS
  * range, so it can never truncate data or push a channel off the end. */
-void song_exchange_channels(int a, int b)
+/* REPORT-CARD >> features/channel-move.feature */
+static void song_exchange_channels_locked(int a, int b)
 {
 	int i, row, rows;
 
 	if (a == b || a < 0 || a >= MAX_CHANNELS || b < 0 || b >= MAX_CHANNELS)
 		return;
-
-	song_lock_audio();
 
 	for (i = 0; i < MAX_PATTERNS; i++) {
 		song_note_t *data = current_song->patterns[i];
@@ -292,7 +291,43 @@ void song_exchange_channels(int a, int b)
 
 	status.flags |= SONG_NEEDS_SAVE;
 
+}
+
+void song_exchange_channels(int a, int b)
+{
+	song_lock_audio();
+	song_exchange_channels_locked(a, b);
 	song_unlock_audio();
+}
+
+/* REPORT-CARD >> features/global-channel-insert.feature */
+int song_insert_channel(int channel)
+{
+	int p, row, c;
+
+	if (channel < 0 || channel >= MAX_CHANNELS)
+		return 0;
+
+	song_lock_audio();
+	/* Check every pattern before changing anything, including unused patterns
+	 * and cells containing only instruments, volume, or effect parameters. */
+	for (p = 0; p < MAX_PATTERNS; p++) {
+		if (!current_song->patterns[p])
+			continue;
+		for (row = 0; row < current_song->pattern_size[p]; row++) {
+			if (!csf_note_is_empty(&current_song->patterns[p][row * MAX_CHANNELS + MAX_CHANNELS - 1])) {
+				song_unlock_audio();
+				return 0;
+			}
+		}
+	}
+	/* Rotate the empty last column into place. Preserve its settings too,
+	 * rather than silently discarding a configured but empty channel. */
+	for (c = MAX_CHANNELS - 1; c > channel; c--)
+		song_exchange_channels_locked(c, c - 1);
+	status.flags |= SONG_NEEDS_SAVE;
+	song_unlock_audio();
+	return 1;
 }
 
 // ------------------------------------------------------------------------
@@ -931,4 +966,3 @@ void song_replace_instrument(int num, int with)
 		}
 	}
 }
-

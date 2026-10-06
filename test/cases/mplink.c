@@ -25,6 +25,7 @@
 #include "test-assertions.h"
 
 #include "song.h"
+#include "it.h"
 
 static int test_pattern_length[] = { 32, 15, 64, 1, 64, 0, 0 };
 
@@ -284,5 +285,44 @@ testresult_t test_song_exchange_channels(void)
 	csf_free(csf);
 	current_song = NULL;
 
+	RETURN_PASS;
+}
+
+// REPORT-CARD >> features/global-channel-insert.feature
+testresult_t test_song_insert_channel(void)
+{
+	song_t *csf = create_subject();
+	current_song = csf;
+	stamp_channel(csf, 2, 10);
+	stamp_channel(csf, 62, 60);
+	csf->channels[2].panning = 11;
+	csf->channels[63].panning = 222;
+	/* Every cell field, even a parameter alone, must block insertion. */
+	song_note_t *last = &csf->patterns[4][63 * MAX_CHANNELS + 63];
+	for (int field = 0; field < 6; field++) {
+		memset(last, 0, sizeof(*last));
+		((uint8_t *)last)[field] = 1;
+		status.flags &= ~SONG_NEEDS_SAVE;
+		ASSERT(!song_insert_channel(2));
+		ASSERT(channel_note_matches(csf, 2, 10));
+		ASSERT(channel_note_matches(csf, 62, 60));
+		ASSERT(csf->channels[2].panning == 11);
+		ASSERT(csf->channels[63].panning == 222);
+		ASSERT(!(status.flags & SONG_NEEDS_SAVE));
+	}
+	memset(last, 0, sizeof(*last));
+	ASSERT(song_insert_channel(2));
+	for (int p = 0; test_pattern_length[p]; p++)
+		for (int r = 0; r < csf->pattern_size[p]; r++)
+			ASSERT(csf_note_is_empty(&csf->patterns[p][r * MAX_CHANNELS + 2]));
+	ASSERT(channel_note_matches(csf, 3, 10));
+	ASSERT(channel_note_matches(csf, 63, 60));
+	ASSERT(csf->channels[2].panning == 222);
+	ASSERT(csf->channels[3].panning == 11);
+	ASSERT(status.flags & SONG_NEEDS_SAVE);
+	ASSERT(!song_insert_channel(-1));
+	ASSERT(!song_insert_channel(MAX_CHANNELS));
+	csf_free(csf);
+	current_song = NULL;
 	RETURN_PASS;
 }

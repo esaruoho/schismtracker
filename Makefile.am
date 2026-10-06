@@ -87,6 +87,8 @@ scripts = \
 	scripts/palette.py
 
 EXTRA_DIST = \
+	build_mac.sh bin/schism bin/schismtracker \
+	scripts/schism-aliases.sh scripts/install-schism-aliases.sh \
 	sys/mingw/ablink-win32.cpp			\
 	sys/mingw/case-compat/Windows.h				\
 	sys/mingw/case-compat/WinSock2.h				\
@@ -876,4 +878,3 @@ schismtrackertest_OBJCFLAGS = $(schimtracker_OBJCFLAGS)
 schismtrackertest_DEPENDENCIES = $(schismtracker_DEPENDENCIES) schismtracker$(EXEEXT)
 schismtrackertest_LDADD = $(filter-out $(mains),$(schismtracker_OBJECTS)) $(schismtracker_LDADD)
 schismtrackertest_LDFLAGS = $(schismtracker_LDFLAGS)
-

@@ -11,12 +11,14 @@
 | Card | Scn | Build | Runtime | Hardware | Grades present |
 |------|----:|:-----:|:----------:|:--------:|----------------|
 | ableton-link | 19 | ✓ | — | ✓ | @build-verified @corrected @design-note @hw-untested @hw-verified @lib-verified @shipped @todo |
+| channel-move | 2 | ✓ | ✗ | — | @build-verified @built @runtime-untested |
 | fast-sample-load | 8 | ✓ | ✗ | — | @app-launch-verified @build-verified @runtime-untested @shipped @stock |
-| mac-build-run | 3 | ✓ | ✓ | — | @build-verified @runtime-verified |
+| global-channel-insert | 4 | ✓ | ✗ | — | @build-verified @runtime-untested @sim-verified @stock |
+| mac-build-run | 4 | ✓ | ✓ | — | @build-verified @runtime-verified |
 
 ## Tally (computed)
-- Cards: 3
-- Build-verified: 3
+- Cards: 5
+- Build-verified: 5
 - Runtime-verified: 1 full + 0 partial
 - **Hardware-verified: 1**  ·  hardware-untested: 0
 

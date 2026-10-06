@@ -3832,6 +3832,7 @@ static void pattern_replicate_at_cursor(int whole_pattern)
  * over the editor's own per-channel multichannel-record toggles and flash a
  * status line. Swapping is reversible, so Shift-Alt-Left then Shift-Alt-Right
  * restores the original order with no data loss. */
+/* REPORT-CARD >> features/channel-move.feature */
 static void pattern_move_channel(int chan, int dest)
 {
 	int tmp;
@@ -4197,6 +4198,22 @@ static int pattern_editor_handle_alt_key(struct key_event * k)
 	case SCHISM_KEYSYM_INSERT:
 		if (k->state == KEY_RELEASE)
 			return 1;
+		/* REPORT-CARD >> features/global-channel-insert.feature */
+		if (k->mod & SCHISM_KEYMOD_SHIFT) {
+			if (!song_insert_channel(current_channel - 1)) {
+				dialog_create(DIALOG_OK,
+					"Channel 64 has data. Move or clear it first.",
+					NULL, NULL, 0, NULL);
+				return 1;
+			}
+			int last_multi = channel_multi[MAX_CHANNELS - 1];
+			for (int c = MAX_CHANNELS - 1; c >= current_channel; c--)
+				channel_multi[c] = channel_multi[c - 1];
+			channel_multi[current_channel - 1] = last_multi;
+			status_text_flash("Channel %d inserted in all patterns", current_channel);
+			status.flags |= NEED_UPDATE;
+			return 1;
+		}
 		pated_save("Remove inserted row(s)    (Alt-Insert)");
 		pattern_insert_rows(current_row, 1, 1, MAX_CHANNELS);
 		break;
@@ -4894,7 +4911,8 @@ static int pattern_editor_handle_key_cb(struct key_event * k)
 	int shift_gesture = ((k->mod & SCHISM_KEYMOD_CTRL) && k->sym == SCHISM_KEYSYM_DOWN)
 		|| ((k->mod & SCHISM_KEYMOD_ALT)
 			&& (k->sym == SCHISM_KEYSYM_UP || k->sym == SCHISM_KEYSYM_DOWN
-				|| k->sym == SCHISM_KEYSYM_LEFT || k->sym == SCHISM_KEYSYM_RIGHT));
+				|| k->sym == SCHISM_KEYSYM_LEFT || k->sym == SCHISM_KEYSYM_RIGHT
+				|| k->sym == SCHISM_KEYSYM_INSERT));
 
 	if ((k->mod & SCHISM_KEYMOD_SHIFT) && !shift_gesture) {
 		switch (k->sym) {
@@ -5032,4 +5050,3 @@ void pattern_editor_load_page(struct page *page)
 
 	widget_create_other(widgets_pattern + 0, 0, pattern_editor_handle_key_cb, NULL, pattern_editor_redraw);
 }
-

@@ -1,5 +1,21 @@
 # Building on OS X
 
+## Fork shortcut: build and launch
+
+With Homebrew build dependencies and SDL installed, run `./build_mac.sh` from
+this checkout. It builds the current configuration, packages the local app with
+SDL runtime libraries, and opens it. Use `./build_mac.sh --no-run` to package
+without launching. Set `JOBS` to change the default four build workers.
+
+Run `./scripts/install-schism-aliases.sh` once to add `schism` and
+`schismtracker` launch aliases to `~/.bash_profile`. Start a new terminal or source
+`scripts/schism-aliases.sh` to use them immediately. Both commands launch this
+checkout's app; rebuild after source changes with `./build_mac.sh`.
+Alternatively, launch directly with `./bin/schism` or `./bin/schismtracker`.
+
+The local bundle is built for this Mac and uses installed Homebrew dependencies.
+Download the GitHub release package for distribution to other machines.
+
 Start by installing [Homebrew](http://brew.sh/). Open up the Terminal and paste
 in the following command:
 

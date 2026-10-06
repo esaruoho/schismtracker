@@ -194,6 +194,7 @@ TEST_FUNC(test_song_get_pattern_offset_from_middle_over_two_patterns)
 TEST_FUNC(test_song_get_pattern_offset_song_LAST)
 TEST_FUNC(test_song_get_pattern_offset_past_end_of_song)
 TEST_FUNC(test_song_exchange_channels)
+TEST_FUNC(test_song_insert_channel)
 
 TEST_FUNC(test_mem_xor)
 

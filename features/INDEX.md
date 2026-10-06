@@ -14,3 +14,5 @@ Derived views — GENERATED, never hand-edit:
 | `fast-sample-load.feature` | Caps Lock / Scroll Lock fast sample loading into Pattern Editor | `fast-sample-load.session.md` | pending commit |
 # mac-build-run
 Local, uncommitted: [card](mac-build-run.feature), [session](mac-build-run.session.md), [script](../build_mac.sh). Final build/package/open invocation returned zero.
+
+- [Global channel insertion](global-channel-insert.feature) — working tree; [session](global-channel-insert.session.md).

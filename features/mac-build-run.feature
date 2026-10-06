@@ -3,9 +3,10 @@
 # thinkspace: mac-build-run.session.md
 # areaspace: owns local build, SDL runtime packaging and launch; excludes installation and source changes
 # SESSION: mac-build-run.session.md
-# RESULT: Local working tree; no commit or PR. Files: build_mac.sh and this card/session/transcript.
-# WATCH: build_mac package_mac
+# RESULT: Initial build/launch scripts delivered directly to master in 48cf360d, no PR; alias installer and source-distribution update pending.
+# WATCH: build_mac package_mac schism_alias_command source_line
 # RESULT-LOG >>
+#   2026-10-06  direct-commit  touched: build_mac source_line
 #   2026-10-06  direct-commit  touched: build_mac package_mac
 Feature: Build and launch Schism Tracker on macOS
   @build-verified
@@ -30,3 +31,11 @@ Feature: Build and launch Schism Tracker on macOS
     Given the local bundle was packaged successfully
     When the script completes
     Then macOS receives an open request for the bundle
+
+  @runtime-verified
+  Scenario: Launch aliases point to this checkout
+    # cite: scripts/schism-aliases.sh schism_alias_command; scripts/install-schism-aliases.sh source_line; bin/schism
+    Given the alias installer has run
+    When a new Bash login shell starts
+    Then schism and schismtracker resolve to this checkout's bin/schism
+    And repeated installation does not duplicate the profile line
