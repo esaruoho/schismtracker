@@ -11,6 +11,7 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 - [Fast sample loading into the pattern editor](#fast-sample-load) — `fast-sample-load.feature`
 - [Safely insert a channel throughout the song](#global-channel-insert) — `global-channel-insert.feature`
 - [Build and launch Schism Tracker on macOS](#mac-build-run) — `mac-build-run.feature`
+- [Upload Windows binaries from a nested checkout](#windows-release-upload) — `windows-release-upload.feature`
 
 
 <a id="ableton-link"></a>
@@ -117,4 +118,19 @@ Each card is a triad: the `.feature` spec, a `.session.md` (the conversation tha
 **How it does it:** **Key procs:** `build_mac`, `package_mac`, `schism_alias_command`, `source_line`
 
 **Grade:** @build-verified ×2 · @runtime-verified ×2
+
+
+<a id="windows-release-upload"></a>
+## Upload Windows binaries from a nested checkout
+
+`features/windows-release-upload.feature` · [session](windows-release-upload.session.md)
+
+**Behaviour (2 scenarios):**
+
+- Release upload selects the fork outside the checkout — `@built @runtime-untested`
+- Recover this release's completed Windows builds — `@build-verified`
+
+**How it does it:** **Key procs:** `GH_REPO`
+
+**Grade:** @build-verified ×1 · @built ×1 · @runtime-untested ×1
 

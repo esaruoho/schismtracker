@@ -415,11 +415,13 @@ jobs:
             configuration.md
 
       - name: 'Attach to GitHub release'
+        # REPORT-CARD >> features/windows-release-upload.feature
         # Only on a tag push. The Windows job produces loose files rather than a
         # zip, so bundle them the same way the artifact does.
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -eu
           asset='schismtracker-${{ steps.date.outputs.date }}-${{ matrix.sys }}-${{ matrix.target }}.zip'

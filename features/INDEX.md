@@ -16,3 +16,5 @@ Derived views — GENERATED, never hand-edit:
 Local, uncommitted: [card](mac-build-run.feature), [session](mac-build-run.session.md), [script](../build_mac.sh). Final build/package/open invocation returned zero.
 
 - [Global channel insertion](global-channel-insert.feature) — working tree; [session](global-channel-insert.session.md).
+
+Windows release upload: [card](windows-release-upload.feature), [session](windows-release-upload.session.md). Explicit GH_REPO fixes uploads outside the nested checkout.

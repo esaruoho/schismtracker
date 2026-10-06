@@ -15,10 +15,11 @@
 | fast-sample-load | 8 | ✓ | ✗ | — | @app-launch-verified @build-verified @runtime-untested @shipped @stock |
 | global-channel-insert | 4 | ✓ | ✗ | — | @build-verified @runtime-untested @sim-verified @stock |
 | mac-build-run | 4 | ✓ | ✓ | — | @build-verified @runtime-verified |
+| windows-release-upload | 2 | ✓ | ✗ | — | @build-verified @built @runtime-untested |
 
 ## Tally (computed)
-- Cards: 5
-- Build-verified: 5
+- Cards: 6
+- Build-verified: 6
 - Runtime-verified: 1 full + 0 partial
 - **Hardware-verified: 1**  ·  hardware-untested: 0
 
