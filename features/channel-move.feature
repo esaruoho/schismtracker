@@ -3,7 +3,7 @@
 # thinkspace: channel-move.session.md
 # areaspace: owns channel exchanges and editor shortcuts; excludes mixer changes
 # SESSION: channel-move.session.md
-# RESULT: Pending local commit; no PR. Files: include/song.h, include/test-funcs.h, schism/mplink.c, schism/page_patedit.c, test/cases/mplink.c.
+# RESULT: Feature delivered directly to master in 48cf360d; card authored in d34bbe03. No PR. Files: include/song.h, include/test-funcs.h, schism/mplink.c, schism/page_patedit.c, test/cases/mplink.c.
 # WATCH: song_exchange_channels pattern_move_channel shift_gesture test_song_exchange_channels
 # RESULT-LOG >>
 #   2026-10-06  direct-commit  touched: song_exchange_channels

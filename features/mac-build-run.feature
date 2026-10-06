@@ -3,7 +3,7 @@
 # thinkspace: mac-build-run.session.md
 # areaspace: owns local build, SDL runtime packaging and launch; excludes installation and source changes
 # SESSION: mac-build-run.session.md
-# RESULT: Initial build/launch scripts delivered directly to master in 48cf360d, no PR; alias installer and source-distribution update pending.
+# RESULT: Initial scripts delivered directly to master in 48cf360d; alias installer and source-distribution entries in d34bbe03. No PR. Release validation recorded in mac-build-run.session.md.
 # WATCH: build_mac package_mac schism_alias_command source_line
 # RESULT-LOG >>
 #   2026-10-06  direct-commit  touched: build_mac source_line
